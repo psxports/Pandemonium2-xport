@@ -1804,6 +1804,9 @@ void p2_dispatch_object_callback(uint32 target, uint32 object_offset)
         case 0x800351A4:
             p2_func_800351a4(object_offset);
             return;
+        case 0x8002AD4C:
+            p2_func_8002ad4c(object_offset);
+            return;
         case 0x8004DCD0:
             p2_func_8004dcd0(object_offset);
             return;
@@ -1827,6 +1830,114 @@ void p2_dispatch_object_callback(uint32 target, uint32 object_offset)
             return;
         case 0x8002B000:
             p2_func_8002b000(object_offset);
+            return;
+        case 0x8001F6AC:
+            p2_func_8001f6ac(object_offset);
+            return;
+        case 0x80022358:
+            p2_func_80022358(object_offset);
+            return;
+        case 0x8003FF3C:
+            p2_func_8003ff3c(object_offset);
+            return;
+        case 0x80044444:
+            p2_func_80044444(object_offset);
+            return;
+        case 0x80020C08:
+            p2_func_80020c08(object_offset);
+            return;
+        case 0x80021678:
+            p2_func_80021678(object_offset);
+            return;
+        case 0x80021E28:
+            p2_func_80021e28(object_offset);
+            return;
+        case 0x8002293C:
+            p2_func_8002293c(object_offset);
+            return;
+        case 0x80027A8C:
+            p2_func_80027a8c(object_offset);
+            return;
+        case 0x8005DFB8:
+            p2_func_8005dfb8(object_offset);
+            return;
+        case 0x8005E418:
+            p2_func_8005e418(object_offset);
+            return;
+        case 0x8005FADC:
+            p2_func_8005fadc(object_offset);
+            return;
+        case 0x80060688:
+            p2_func_80060688(object_offset);
+            return;
+        case 0x8005F490:
+            p2_func_8005f490(object_offset);
+            return;
+        case 0x8002B220:
+            p2_func_8002b220(object_offset);
+            return;
+        case 0x8005C40C:
+            p2_func_8005c40c(object_offset);
+            return;
+        case 0x800229A4:
+            p2_func_800229a4(object_offset);
+            return;
+        case 0x800278E8:
+            p2_func_800278e8(object_offset);
+            return;
+        case 0x8003FDC8:
+            p2_func_8003fdc8(object_offset);
+            return;
+        case 0x8004425C:
+            p2_func_8004425c(object_offset);
+            return;
+        case 0x800216CC:
+            p2_func_800216cc(object_offset);
+            return;
+        case 0x8005DE30:
+            p2_func_8005de30(object_offset);
+            return;
+        case 0x80060360:
+            p2_func_80060360(object_offset);
+            return;
+        case 0x8001F6DC:
+            p2_func_8001f6dc(object_offset);
+            return;
+        case 0x80020C6C:
+            p2_func_80020c6c(object_offset);
+            return;
+        case 0x8005F154:
+            p2_func_8005f154(object_offset);
+            return;
+        case 0x8005F510:
+            p2_func_8005f510(object_offset);
+            return;
+        case 0x8005E010:
+            p2_func_8005e010(object_offset);
+            return;
+        case 0x800224AC:
+            p2_func_800224ac(object_offset);
+            return;
+        case 0x80021888:
+            p2_func_80021888(object_offset);
+            return;
+        case 0x80021E70:
+            p2_func_80021e70(object_offset);
+            return;
+        case 0x8001EDAC:
+            p2_func_8001edac(object_offset);
+            return;
+        case 0x80026B64:
+            p2_func_80026b64();
+            return;
+        case 0x8002F180:
+            p2_func_8002f180();
+            return;
+        case 0x80034BA0:
+            p2_func_80034ba0();
+            return;
+        case 0x80059AD4:
+            p2_func_80059ad4();
             return;
         default:
             fprintf(stderr, "P2: Unmapped object callback %08X\n", target);
@@ -1862,6 +1973,72 @@ uint32 p2_dispatch_object_variant(uint32 target, uint32 object_offset)
             return p2_func_80034044(object_offset);
         case 0x80044230:
             return p2_func_80044230(object_offset);
+        case 0x8001F6AC:
+            return p2_func_8001f6ac(object_offset);
+        case 0x80022358:
+            return p2_func_80022358(object_offset);
+        case 0x8003FF3C:
+            return p2_func_8003ff3c(object_offset);
+        case 0x80044444:
+            return p2_func_80044444(object_offset);
+        case 0x80020C08:
+            return p2_func_80020c08(object_offset);
+        case 0x80021678:
+            return p2_func_80021678(object_offset);
+        case 0x80021E28:
+            return p2_func_80021e28(object_offset);
+        case 0x8002293C:
+            return p2_func_8002293c(object_offset);
+        case 0x80027A8C:
+            return p2_func_80027a8c(object_offset);
+        case 0x8005DFB8:
+            return p2_func_8005dfb8(object_offset);
+        case 0x8005E418:
+            return p2_func_8005e418(object_offset);
+        case 0x8005FADC:
+            return p2_func_8005fadc(object_offset);
+        case 0x80060688:
+            return p2_func_80060688(object_offset);
+        case 0x8005F490:
+            return p2_func_8005f490(object_offset);
+        case 0x8002B220:
+            return p2_func_8002b220(object_offset);
+        case 0x8002AD4C:
+            return p2_func_8002ad4c(object_offset);
+        case 0x8005C40C:
+            return p2_func_8005c40c(object_offset);
+        case 0x800229A4:
+            return p2_func_800229a4(object_offset);
+        case 0x800278E8:
+            return p2_func_800278e8(object_offset);
+        case 0x8003FDC8:
+            return p2_func_8003fdc8(object_offset);
+        case 0x8004425C:
+            return p2_func_8004425c(object_offset);
+        case 0x800216CC:
+            return p2_func_800216cc(object_offset);
+        case 0x8005DE30:
+            return p2_func_8005de30(object_offset);
+        case 0x80060360:
+            return p2_func_80060360(object_offset);
+        case 0x8001F6DC:
+            return p2_func_8001f6dc(object_offset);
+        case 0x80020C6C:
+            return p2_func_80020c6c(object_offset);
+        case 0x8005F154:
+            return p2_func_8005f154(object_offset);
+        case 0x8005F510:
+            return p2_func_8005f510(object_offset);
+        case 0x8005E010:
+            return p2_func_8005e010(object_offset);
+        case 0x800224AC:
+            return p2_func_800224ac(object_offset);
+        case 0x80021888:
+            return p2_func_80021888(object_offset);
+        case 0x80021E70:
+            return p2_func_80021e70(object_offset);
+        case 0x8001EDAC:
+            return p2_func_8001edac(object_offset);
         default:
             fprintf(stderr, "P2: Unmapped object variant callback %08X\n", target);
             abort();

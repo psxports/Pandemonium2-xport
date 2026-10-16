@@ -846,21 +846,19 @@ static void p2_sequence_tone_event(uint32 target, sint16 bank, sint16 program, s
             p2_sdk_80072d38(bank, program, tone, input, value);
             return;
         case 0x80073660:
-            p2_sdk_800763ec(value);
+            p2_func_80073660(value);
             return;
         case 0x80073684:
             p2_sdk_80076354(value, value);
             return;
         case 0x800736AC:
-            w_u32(0x800B14B0, 16);
-            w_u32(0x800B14C0, value);
-            p2_sdk_8006ff38(0x800B14B0);
+            p2_func_800736ac(value);
             return;
         case 0x800736D0:
+            p2_func_800736d0(value);
+            return;
         case 0x800736F4:
-            w_u32(0x800B14B0, 8);
-            w_u32(0x800B14BC, value);
-            p2_sdk_8006ff38(0x800B14B0);
+            p2_func_800736f4(value);
             return;
         case 0x80072DC8:
         case 0x80072F64:

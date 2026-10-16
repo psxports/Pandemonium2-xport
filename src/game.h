@@ -759,4 +759,121 @@ uint32 p2_func_8003bc08(uint32 object_offset, uint32 position_offset, uint32 flo
 uint32 p2_func_80058714(uint32 object_offset);
 uint32 p2_func_800558ac(uint32 mode);
 
+uint32 p2_func_8001f6ac(uint32 object_offset);
+uint32 p2_func_80022358(uint32 object_offset);
+uint32 p2_func_8003ff3c(uint32 object_offset);
+uint32 p2_func_80044444(uint32 object_offset);
+uint32 p2_func_80020c08(uint32 object_offset);
+uint32 p2_func_80021678(uint32 object_offset);
+uint32 p2_func_80021e28(uint32 object_offset);
+uint32 p2_func_8002293c(uint32 object_offset);
+uint32 p2_func_80027a8c(uint32 object_offset);
+uint32 p2_func_8005dfb8(uint32 object_offset);
+uint32 p2_func_8005e418(uint32 object_offset);
+uint32 p2_func_8005fadc(uint32 object_offset);
+uint32 p2_func_80060688(uint32 object_offset);
+uint32 p2_func_8005f490(uint32 object_offset);
+void p2_func_80026b64(void);
+void p2_func_8002f180(void);
+void p2_func_80034ba0(void);
+void p2_func_80059ad4(void);
+void p2_func_8002d510(void);
+uint32 p2_func_80068264(void);
+uint32 p2_func_8005f124(uint32 handle, sint16 volume);
+uint32 p2_func_800352cc(void);
+
+uint32 p2_func_8002f188(uint32 destination, uint32 source, uint32 quaternion);
+uint32 p2_func_8002f318(uint32 destination, uint32 source, sint16 angle);
+uint32 p2_func_8002f3b0(uint32 destination, uint32 source, sint16 first_angle, sint16 second_angle);
+uint32 p2_func_8002f4c0(uint32 destination, uint32 source, sint16 first_angle, sint16 second_angle);
+uint32 p2_func_8002f5d0(uint32 destination, uint32 source, sint16 first_angle, sint16 second_angle, sint16 third_angle);
+
+uint32 p2_func_80026fb4(uint32 name_offset);
+uint32 p2_func_8002a6d8(void);
+uint32 p2_func_8002b220(uint32 object_offset);
+uint32 p2_func_8002d51c(uint32 kind);
+uint32 p2_func_8002d71c(uint32 kind, uint8 value);
+uint32 p2_func_8005a480(uint32 character_offset, uint32 incoming_flags);
+
+sint32 p2_func_800309bc(uint32 object_offset);
+sint32 p2_func_80034958(uint32 object_offset, uint32 position, uint32 target);
+uint32 p2_func_800401f0(uint32 object_offset, uint32 target, sint16 step);
+uint32 p2_func_800402bc(uint32 object_offset, uint32 target, sint16 step);
+sint32 p2_func_80056660(sint32 first_frame, sint32 second_frame, uint32 path_offset);
+uint32 p2_func_80057480(uint32 object_offset, uint32 path_offset, uint32 destination);
+
+uint32 p2_func_8004a928(uint32 object_offset, uint32 character_offset);
+uint32 p2_func_8002ad4c(uint32 object_offset);
+
+uint32 p2_func_8006d2ec(void);
+uint32 p2_func_80071a8c(sint16 sequence);
+uint32 p2_func_80074238(sint16 sequence, sint16 track);
+void p2_func_800742d4(void);
+uint32 p2_func_800743c0(sint16 sequence, sint16 track);
+void p2_func_80074770(void);
+uint32 p2_func_800759a8(sint16 sequence, sint16 track);
+void p2_func_800767b8(void);
+uint32 p2_func_800767c8(void);
+
+uint32 p2_func_80067778(void);
+uint32 p2_func_8006b04c(uint32 position, uint32 alternate, sint32 selection);
+uint32 p2_func_80032048(uint32 state, uint32 object, uint32 sound, uint32 mode);
+uint32 p2_func_8005c40c(uint32 object);
+
+uint32 p2_func_80035494(uint32 object, uint32 position, uint32 target, uint32 distance, uint32 definition, uint32 character, uint8 allowed);
+uint32 p2_func_8003bb18(uint32 object, uint32 position, uint32 direction, uint32 context);
+sint32 p2_func_800574b4(uint32 path, uint32 position, uint32 floor, uint32 direction);
+
+uint32 p2_func_8001fa08(void);
+sint32 p2_func_80022388(uint32 object);
+uint32 p2_func_800229a4(uint32 object);
+uint32 p2_func_800278e8(uint32 object);
+uint32 p2_func_8003fdc8(uint32 object);
+uint32 p2_func_8004425c(uint32 object);
+
+uint32 p2_func_800216cc(uint32 object);
+uint32 p2_func_8005de30(uint32 object);
+uint32 p2_func_80060360(uint32 object);
+
+uint32 p2_func_8001fa24(uint32 object, uint32 script, uint32 target, sint32 index);
+
+uint32 p2_func_80020094(uint32 object, uint32 origin, uint32 target, sint32 distance, uint32 resource, uint32 script);
+
+uint32 p2_func_800204cc(uint32 object, uint32 origin, uint32 target, sint32 distance, uint32 resource, uint32 script);
+uint32 p2_func_8001f6dc(uint32 object);
+
+uint32 p2_func_80021254(uint32 object, uint32 origin, uint32 target, sint32 distance, uint32 resource, uint32 script);
+uint32 p2_func_800213d8(uint32 object, uint32 resource, uint32 script);
+uint32 p2_func_80020f44(uint32 object, uint32 origin, uint32 target, sint32 distance, uint32 resource, uint32 script);
+uint32 p2_func_80020c6c(uint32 object);
+
+uint32 p2_func_8005f154(uint32 object);
+
+uint32 p2_func_8005f510(uint32 object);
+
+uint32 p2_func_8005e010(uint32 object);
+
+uint32 p2_func_800224ac(uint32 object);
+
+uint32 p2_func_80021888(uint32 object);
+
+uint32 p2_func_80021e70(uint32 object);
+
+uint32 p2_func_8001edac(uint32 object);
+
+void p2_func_80073660(uint8 value);
+void p2_func_800736ac(uint8 value);
+void p2_func_800736d0(uint8 value);
+void p2_func_800736f4(uint8 value);
+uint32 p2_func_8006f824(uint32 source, uint16 address_units, uint32 blocks, uint32 port);
+uint32 p2_func_8008040c(uint32 ordering_table, sint32 count, uint32 debug_level);
+void p2_func_8008342c(void);
+
+uint32 p2_func_8007aa1c(uint32 driver, uint32 channel, uint32 callback);
+uint32 p2_func_8007aa7c(uint32 driver);
+uint32 p2_func_8007fc78(uint32 reverse, uint32 debug_level);
+uint32 p2_func_8007fdf8(uint32 enabled, uint32 debug_level);
+uint32 p2_func_80080cf0(uint32 driver);
+uint32 p2_func_8008373c(uint32 type, uint32 destination);
+
 #endif
