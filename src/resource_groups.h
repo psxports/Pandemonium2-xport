@@ -4,10 +4,11 @@
 #include "psx.h"
 
 struct MaterialResourceHeader;
+struct TextureDescriptor;
 
 struct ResourceGroup
 {
-    unsigned int material_offset;
+    TextureDescriptor *texture;
     unsigned int *animation_entries;
     unsigned int animation_words[4];
 };
@@ -17,9 +18,10 @@ extern MaterialResourceHeader *interface_resources;
 
 extern "C"
 {
-uint32 LoadResourceGroups(void);
-uint32 ClearResourceGroupLists(void);
-void UnloadResourceGroups(void);
+    void LoadResourceGroups(void);
+    void LoadCommonGameResources(void);
+    uint32 ClearResourceGroupLists(void);
+    void UnloadResourceGroups(void);
 }
 
 #endif

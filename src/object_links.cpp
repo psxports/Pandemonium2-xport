@@ -1,74 +1,80 @@
 #include "game.h"
 
 SpritePoolState sprite_pool = {0, 0, 0};
-unsigned int registered_object_head = 0;
+SceneNode *registered_object_head = 0;
 
-uint32 p2_func_8002a144(uint32 object_offset, uint32 *source_head, uint32 *destination_head)
+void SceneNode::MoveBetweenLists(SceneNode **source_head, SceneNode **destination_head)
 {
     FUNCTION_MARKER(0x8002A144, "SLUS_005.78");
-    uint32 current = *source_head;
-    uint32 previous = 0;
-    uint32 result;
-    if (object_offset != current)
+    SceneNode *current, *previous = 0, *next;
+    current = *source_head;
+    if (this != current)
     {
         do
         {
             previous = current;
-            current = ((ObjectLinks *)psx_addr(previous, 4))->registry_next;
-        } while (current != 0 && object_offset != current);
+            current = previous->links.registry_next;
+        } while (current != 0 && this != current);
     }
     if (previous != 0)
     {
-        result = ((ObjectLinks *)psx_addr(object_offset, 4))->registry_next;
-        ((ObjectLinks *)psx_addr(previous, 4))->registry_next = result;
+        next = links.registry_next;
+        previous->links.registry_next = next;
     }
-    else
-    {
-        result = *source_head;
-        if (object_offset == result)
-        {
-            result = ((ObjectLinks *)psx_addr(object_offset, 4))->registry_next;
-            *source_head = result;
-        }
-    }
+    else if (this == *source_head)
+        *source_head = links.registry_next;
     if (destination_head != 0)
     {
-        result = *destination_head;
-        ((ObjectLinks *)psx_addr(object_offset, 4))->registry_next = result;
-        *destination_head = object_offset;
+        current = *destination_head;
+        links.registry_next = current;
+        *destination_head = this;
     }
-    return result;
 }
 
-unsigned int ObjectLinks::DetachChild(unsigned int object_offset)
+void ObjectLinks::DetachChild(SceneNode *object)
 {
     FUNCTION_MARKER(0x8002A210, "SLUS_005.78");
-    uint32 result = first_child;
-    uint32 node;
-    if (result == 0)
-        return result;
-    node = result;
-    if (object_offset == result)
+    SceneNode *next, *node;
+    SceneNode *child = object;
+    node = first_child;
+    if (node == 0)
+        return;
+    if (object == node)
     {
-        result = ((ObjectLinks *)psx_addr(object_offset, 8))->sibling_next;
-        first_child = result;
+        next = child->links.sibling_next;
+        first_child = next;
     }
     else
     {
         for (;;)
         {
-            result = ((ObjectLinks *)psx_addr(node, 8))->sibling_next;
-            if (result == object_offset)
+            next = node->links.sibling_next;
+            if (next == object)
             {
-                result = ((ObjectLinks *)psx_addr(object_offset, 8))->sibling_next;
-                ((ObjectLinks *)psx_addr(node, 8))->sibling_next = result;
+                next = child->links.sibling_next;
+                node->links.sibling_next = next;
                 break;
             }
-            node = ((ObjectLinks *)psx_addr(node, 8))->sibling_next;
+            node = next;
             if (node == 0)
                 break;
         }
     }
-    ((ObjectLinks *)psx_addr(object_offset, 8))->sibling_next = 0;
-    return result;
+    child->links.sibling_next = 0;
+}
+
+void SceneNode::Register()
+{
+    SceneNode *previous;
+    FUNCTION_MARKER(0x800401A8, "SLUS_005.78");
+    flags &= 0x7F;
+    previous = registered_object_head;
+    registered_object_head = this;
+    links.registry_next = previous;
+}
+
+void SceneNode::Unregister()
+{
+    FUNCTION_MARKER(0x800401C8, "SLUS_005.78");
+    MoveBetweenLists(&registered_object_head, 0);
 }

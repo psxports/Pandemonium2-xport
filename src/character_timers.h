@@ -15,7 +15,7 @@ struct CharacterTimers
     unsigned short jump_input_ticks;
     unsigned short contact_impulse_ticks;
     unsigned short jump_duration_ticks;
+    unsigned int action_launch_ticks;
 };
-
 
 #endif

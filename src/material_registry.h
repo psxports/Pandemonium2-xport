@@ -1,6 +1,8 @@
 #ifndef MATERIAL_REGISTRY_H
 #define MATERIAL_REGISTRY_H
 
+#include "psx.h"
+
 struct MaterialRecord;
 
 struct MaterialRegistry
@@ -10,10 +12,9 @@ struct MaterialRegistry
     unsigned int reserved[6];
 };
 
-
 extern MaterialRegistry material_registry;
 extern MaterialRegistry saved_material_registry;
 
-extern "C" unsigned int ResetMaterialRegistry(void);
+extern "C" uint8 *ResetMaterialRegistry(void);
 
 #endif

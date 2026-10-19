@@ -1,322 +1,143 @@
 #include "game.h"
+#include "original_defaults.h"
 
-static const uint32 key_reciprocal[257] =
+PathRouting path_routing = {0, 0, 1};
+
+union PathVector
 {
-    0, 1048576, 524288, 349525, 262144, 209715, 174762, 149796,
-    131072, 116508, 104857, 95325, 87381, 80659, 74898, 69905,
-    65536, 61680, 58254, 55188, 52428, 49932, 47662, 45590,
-    43690, 41943, 40329, 38836, 37449, 36157, 34952, 33825,
-    32768, 31775, 30840, 29959, 29127, 28339, 27594, 26886,
-    26214, 25575, 24966, 24385, 23831, 23301, 22795, 22310,
-    21845, 21399, 20971, 20560, 20164, 19784, 19418, 19065,
-    18724, 18396, 18078, 17772, 17476, 17189, 16912, 16644,
-    16384, 16131, 15887, 15650, 15420, 15196, 14979, 14768,
-    14563, 14364, 14169, 13981, 13797, 13617, 13443, 13273,
-    13107, 12945, 12787, 12633, 12483, 12336, 12192, 12052,
-    11915, 11781, 11650, 11522, 11397, 11275, 11155, 11037,
-    10922, 10810, 10699, 10591, 10485, 10381, 10280, 10180,
-    10082, 9986, 9892, 9799, 9709, 9619, 9532, 9446,
-    9362, 9279, 9198, 9118, 9039, 8962, 8886, 8811,
-    8738, 8665, 8594, 8525, 8456, 8388, 8322, 8256,
-    8192, 8128, 8065, 8004, 7943, 7884, 7825, 7767,
-    7710, 7653, 7598, 7543, 7489, 7436, 7384, 7332,
-    7281, 7231, 7182, 7133, 7084, 7037, 6990, 6944,
-    6898, 6853, 6808, 6765, 6721, 6678, 6636, 6594,
-    6553, 6512, 6472, 6432, 6393, 6355, 6316, 6278,
-    6241, 6204, 6168, 6132, 6096, 6061, 6026, 5991,
-    5957, 5924, 5890, 5857, 5825, 5793, 5761, 5729,
-    5698, 5667, 5637, 5607, 5577, 5548, 5518, 5489,
-    5461, 5433, 5405, 5377, 5349, 5322, 5295, 5269,
-    5242, 5216, 5190, 5165, 5140, 5115, 5090, 5065,
-    5041, 5017, 4993, 4969, 4946, 4922, 4899, 4877,
-    4854, 4832, 4809, 4788, 4766, 4744, 4723, 4702,
-    4681, 4660, 4639, 4619, 4599, 4578, 4559, 4539,
-    4519, 4500, 4481, 4462, 4443, 4424, 4405, 4387,
-    4369, 4350, 4332, 4315, 4297, 4279, 4262, 4245,
-    4228, 4211, 4194, 4177, 4161, 4144, 4128, 4112,
-    4096
+    VECTOR vector;
+    uint32 words[4];
 };
 
-uint32 InterpolateKeyTime(uint32 frame, uint32 end, uint32 start_key, uint32 end_key, uint32 keys_offset)
+uint32 PathDefinition::SamplePosition(sint32 frame, uint32 *destination, uint32 direction) const
 {
-    FUNCTION_MARKER(0x80017030, "SLUS_005.78");
-    uint32 elapsed = (frame >> 20) - (start_key >> 20);
-    uint32 duration = (end >> 20) - (start_key >> 20);
-    uint32 reciprocal = duration < 0x101 ? key_reciprocal[duration] : 0x100000u / duration;
-    uint32 left = start_key & 0xFF;
-    uint32 right = end_key & 0xFF;
-    uint32 value = elapsed << 12;
-    uint32 amplitude, threshold, left_curve, right_curve, coefficient;
-    uint32 product, term;
-    if ((left | right) == 0)
-        goto finish;
-    amplitude = ((start_key >> 8) & 0xFFF) + 2048;
-    if (left != 0)
-    {
-        left_curve = keys_offset - left * 12;
-        threshold = (uint32)r_s16(left_curve + 2) * duration;
-        if ((sint32)value < (sint32)threshold)
-        {
-            coefficient = r_u32(left_curve + 8);
-            goto ease_in;
-        }
-        if (right != 0)
-        {
-            right_curve = keys_offset - right * 12;
-            if ((sint32)value >= (sint32)((uint32)r_s16(right_curve) * duration))
-                goto ease_out;
-        }
-        else if ((sint32)value >= (sint32)(duration << 12))
-        {
-            value = duration << 12;
-            goto finish;
-        }
-        term = (uint32)(((sint64)(sint32)amplitude * (sint32)threshold) >> 12);
-        value = (amplitude << 1) * elapsed - term;
-        goto finish;
-    }
-    right_curve = keys_offset - right * 12;
-    if ((sint32)value < (sint32)((uint32)r_s16(right_curve) * duration))
-    {
-        value = (amplitude << 1) * elapsed;
-        goto finish;
-    }
-ease_out:
-    elapsed = duration - elapsed;
-    coefficient = r_u32(right_curve + 4);
-    product = amplitude * (elapsed * elapsed);
-    term = (uint32)(((sint64)(sint32)product * (sint32)coefficient) >> 12);
-    term = (uint32)(((sint64)(sint32)term * (sint32)reciprocal) >> 12);
-    value = (duration << 12) - (uint32)((sint32)term >> 8);
-    goto finish;
-ease_in:
-    product = amplitude * (elapsed * elapsed);
-    term = (uint32)(((sint64)(sint32)product * (sint32)coefficient) >> 12);
-    term = (uint32)(((sint64)(sint32)term * (sint32)reciprocal) >> 12);
-    value = (uint32)((sint32)term >> 8);
-finish:
-    return (uint32)(((sint64)(sint32)value * (sint32)reciprocal) >> 12);
-}
-
-uint32 SampleVectorTrack(sint32 frame, uint32 track_offset, uint32 destination_offset)
-{
-    FUNCTION_MARKER(0x80017364, "SLUS_005.78");
-    uint32 keys = r_u32(track_offset + 12);
-    uint32 previous = keys + (uint32)r_u8(track_offset) * 40 - 40;
-    uint32 next = keys + 40;
-    uint32 frame_value = ((uint32)frame << 20) | 0xFFFFF;
-    uint32 end_value = r_u32(previous);
-    uint32 value, square, cube;
-    uint32 previous_weight, next_weight, previous_tangent_weight, next_tangent_weight;
-    uint32 flags, result = 0, i;
-    if (frame_value < end_value)
-    {
-        do
-        {
-            end_value = r_u32(next);
-            next += 40;
-        } while (frame_value >= end_value);
-        next -= 40;
-        previous = next - 40;
-    }
-    else
-    {
-        next -= 40;
-        if (frame_value == (end_value | 0xFFFFF))
-            goto copy_key;
-        end_value = ((uint32)r_s16(track_offset + 4) << 20) | 0xFFFFF;
-        if (frame_value >= end_value)
-        {
-            if ((r_u8(track_offset + 2) & 3) == 3)
-                previous = next;
-            goto copy_key;
-        }
-    }
-    value = InterpolateKeyTime(frame_value, end_value, r_u32(previous), r_u32(next), r_u32(track_offset + 12));
-    square = (uint32)(((sint64)(sint32)value * (sint32)value) >> 12) >> 8;
-    cube = (uint32)(((sint64)(sint32)square * (sint32)value) >> 12) >> 8;
-    next_tangent_weight = (uint32)((sint32)(cube - square) >> 8);
-    next_weight = (uint32)((sint32)(3 * square - 2 * cube) >> 8);
-    previous_tangent_weight = (uint32)((sint32)(cube - square + value - square) >> 8);
-    previous_weight = 4096u - next_weight;
-    flags = r_u8(track_offset + 2);
-    for (i = 0; i < 3; ++i)
-    {
-        uint32 first, second, tangent0, tangent1, sum;
-        if ((flags & 0x20) != 0)
-        {
-            first = (uint32)(((sint64)r_s32(previous + 4 + i * 4) * (sint32)previous_weight) >> 12);
-            second = (uint32)(((sint64)r_s32(next + 4 + i * 4) * (sint32)next_weight) >> 12);
-            tangent0 = r_u32(previous + 16 + i * 4) * previous_tangent_weight;
-            tangent1 = r_u32(next + 28 + i * 4) * next_tangent_weight;
-            result = (uint32)((sint32)(tangent0 + tangent1) >> 12);
-            sum = first + second + result;
-        }
-        else if ((flags & 0x10) != 0)
-        {
-            first = r_u32(previous + 4 + i * 4) * previous_weight;
-            second = r_u32(next + 4 + i * 4) * next_weight;
-            tangent0 = r_u32(previous + 16 + i * 4) * previous_tangent_weight;
-            tangent1 = r_u32(next + 28 + i * 4) * next_tangent_weight;
-            result = (uint32)((sint32)(first + second + tangent0 + tangent1) >> 12);
-            sum = result;
-        }
-        else
-        {
-            first = (uint32)(((sint64)r_s32(previous + 4 + i * 4) * (sint32)previous_weight) >> 12);
-            second = (uint32)(((sint64)r_s32(next + 4 + i * 4) * (sint32)next_weight) >> 12);
-            tangent0 = (uint32)(((sint64)r_s32(previous + 16 + i * 4) * (sint32)previous_tangent_weight) >> 12);
-            result = (uint32)(((sint64)r_s32(next + 28 + i * 4) * (sint32)next_tangent_weight) >> 12);
-            sum = first + second + tangent0 + result;
-        }
-        w_u32(destination_offset + i * 4, sum);
-    }
-    return result;
-copy_key:
-{
-    uint32 x = r_u32(previous + 4);
-    uint32 y = r_u32(previous + 8);
-    uint32 z = r_u32(previous + 12);
-    w_u32(destination_offset, x);
-    w_u32(destination_offset + 4, y);
-    w_u32(destination_offset + 8, z);
-    return x;
-}
-}
-
-uint32 SampleWorldPath(uint32 definition_offset, sint32 frame, uint32 destination_offset, uint32 direction)
-{
+    const PathTransform *captured_path_transform;
     FUNCTION_MARKER(0x800230F0, "SLUS_005.78");
-    sint32 output;
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 matrix, vector, i, result;
-    p2_guest_stack_pointer -= 0x20;
-    vector = p2_guest_stack_pointer + 0x10;
+    const MATRIX *matrix;
+    uint32 i, result;
+    const PathTransform *matrix_transform;
+    PathVector vector;
     if (direction == 0)
-        frame = (sint32)((uint32)r_s16(definition_offset + 26) - (uint32)frame - 1);
-    matrix = r_u32(definition_offset + 40);
-    if (matrix != 0)
+        frame = (sint32)((uint32)(sint16)positions.metadata6 - (uint32)frame - 1);
+    matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+    matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+    if (matrix_transform != 0)
     {
-        output = SampleVectorTrack(frame, definition_offset + 20, vector);
+        SampleVectorTrack(frame, &positions, vector.words);
         PushMatrix();
         for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, r_u32(matrix + i * 4));
-        p2_sdk_8007ec64(vector, destination_offset);
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        ApplyRotMatrixLV(&vector.vector, (VECTOR *)destination);
         PopMatrix();
-        /* TODO: Bind the original matrix-stack diagnostic exits */
         for (i = 0; i < 3; ++i)
         {
-            result = r_u32(destination_offset + i * 4) + r_u32(matrix + 20 + i * 4);
-            w_u32(destination_offset + i * 4, result);
+            result = destination[i] + (uint32)matrix->t[i];
+            destination[i] = result;
         }
     }
     else
     {
-        result = SampleVectorTrack(frame, definition_offset + 20, destination_offset);
+        result = SampleVectorTrack(frame, &positions, destination);
     }
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-uint32 SamplePathOffset(uint32 path_offset, sint32 frame, uint32 destination_offset, uint32 direction)
+uint32 ScenePath::SampleOffset(sint32 frame, uint32 *destination, uint32 direction) const
 {
     FUNCTION_MARKER(0x80022C24, "SLUS_005.78");
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 matrix, vector, i, result;
-    p2_guest_stack_pointer -= 0x20;
-    vector = p2_guest_stack_pointer + 0x10;
-    if ((r_u16(path_offset + 14) & (direction | 8)) == 0)
-        frame = (sint32)((uint32)r_s16(r_u32(path_offset + 36) + 26) - (uint32)frame - 1);
-    if (r_u32(path_offset + 32) != 0)
-    {
-        SampleVectorTrack(frame, path_offset + 40, vector);
-        PushMatrix();
-        matrix = r_u32(path_offset + 32);
-        for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, r_u32(matrix + i * 4));
-        p2_sdk_8007ec64(vector, destination_offset);
-        PopMatrix();
-        for (i = 0; i < 3; ++i)
-        {
-            matrix = r_u32(path_offset + 32);
-            result = r_u32(destination_offset + i * 4) + r_u32(matrix + 20 + i * 4);
-            w_u32(destination_offset + i * 4, result);
-        }
-    }
-    else
-    {
-        result = SampleVectorTrack(frame, path_offset + 40, destination_offset);
-    }
-    p2_guest_stack_pointer = saved_stack;
-    return result;
-}
-
-uint32 SamplePathPosition(uint32 path_offset, sint32 frame, uint32 destination_offset, uint32 direction)
-{
-    FUNCTION_MARKER(0x80022B20, "SLUS_005.78");
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 definition, matrix, vector, i, result;
-    p2_guest_stack_pointer -= 0x20;
-    vector = p2_guest_stack_pointer + 0x10;
-    if (direction == 0)
-        frame = (sint32)((uint32)r_s16(r_u32(path_offset + 36) + 26) - (uint32)frame - 1);
-    definition = r_u32(path_offset + 36);
-    matrix = r_u32(definition + 40);
+    const MATRIX *matrix;
+    uint32 i, result;
+    PathVector vector;
+    if ((node.state_flags & (direction | 8)) == 0)
+        frame = (sint32)((uint32)(sint16)((const PathDefinition *)((const PathDefinition *)((this->definition))))->positions.metadata6 - (uint32)frame - 1);
+    matrix = offset_matrix;
     if (matrix != 0)
     {
-        SampleVectorTrack(frame, definition + 20, vector);
+        SampleVectorTrack(frame, &offset_track, vector.words);
         PushMatrix();
+        matrix = offset_matrix;
         for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, r_u32(matrix + i * 4));
-        p2_sdk_8007ec64(vector, destination_offset);
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        ApplyRotMatrixLV(&vector.vector, (VECTOR *)destination);
         PopMatrix();
         for (i = 0; i < 3; ++i)
         {
-            result = r_u32(destination_offset + i * 4) + r_u32(matrix + 20 + i * 4);
-            w_u32(destination_offset + i * 4, result);
+            matrix = offset_matrix;
+            result = destination[i] + (uint32)matrix->t[i];
+            destination[i] = result;
+        }
+    }
+    else
+        result = SampleVectorTrack(frame, &offset_track, destination);
+    return result;
+}
+
+uint32 ScenePath::SamplePosition(sint32 frame, uint32 *destination, uint32 direction) const
+{
+    const PathTransform *captured_path_transform;
+    FUNCTION_MARKER(0x80022B20, "SLUS_005.78");
+    const MATRIX *matrix;
+    const PathDefinition *definition;
+    uint32 i, result;
+    const PathTransform *matrix_transform;
+    PathVector vector;
+    if (direction == 0)
+        frame = (sint32)((uint32)(sint16)((const PathDefinition *)((const PathDefinition *)((this->definition))))->positions.metadata6 - (uint32)frame - 1);
+    definition = (const PathDefinition *)((const PathDefinition *)((this->definition)));
+    matrix_transform = ((captured_path_transform = (definition->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+    matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+    if (matrix_transform != 0)
+    {
+        SampleVectorTrack(frame, &definition->positions, vector.words);
+        PushMatrix();
+        for (i = 0; i < 5; ++i)
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        ApplyRotMatrixLV(&vector.vector, (VECTOR *)destination);
+        PopMatrix();
+        for (i = 0; i < 3; ++i)
+        {
+            result = destination[i] + (uint32)matrix->t[i];
+            destination[i] = result;
         }
     }
     else
     {
-        result = SampleVectorTrack(frame, definition + 20, destination_offset);
+        result = SampleVectorTrack(frame, &definition->positions, destination);
     }
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-sint32 ProjectPathFrame(uint32 definition_offset, sint32 frame, uint32 position_offset, uint32 floor_offset, uint32 direction, sint32 scale)
+sint32 PathDefinition::ProjectFrame(sint32 frame, const uint32 *position, uint32 *floor, uint32 direction, sint32 scale) const
 {
     FUNCTION_MARKER(0x8003D3FC, "SLUS_005.78");
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 vector, side, i, x, y, z, floor_x, floor_z, point_x, point_z, input_x, input_z;
+    PathVector vector;
+    uint32 side, i, x, y, z, floor_x, floor_z, point_x, point_z, input_x, input_z;
     uint32 dx, dz, point_dot, floor_dot, ratio, squared, limit, last_endpoint = 0;
     sint32 reciprocal, factor, result;
-    p2_guest_stack_pointer -= 0x20;
-    vector = p2_guest_stack_pointer + 0x10;
     if (frame > 0)
     {
-        sint32 count = r_s16(definition_offset + 26);
+        sint32 count = (sint16)positions.metadata6;
         if (frame >= count)
             frame = count - 1;
     }
     else
         frame = 0;
-    SampleWorldPath(definition_offset, frame, floor_offset, direction);
+    SamplePosition(frame, floor, direction);
     for (side = 0; side < 2; ++side)
     {
         if (side == 0 && frame == 0)
             continue;
-        SampleWorldPath(definition_offset, (sint32)((uint32)frame + (side == 0 ? 0xFFFFFFFF : 1)), vector, direction);
-        floor_z = r_u32(floor_offset + 8);
-        point_z = r_u32(vector + 8);
-        point_x = r_u32(vector);
-        floor_x = r_u32(floor_offset);
-        input_x = r_u32(position_offset);
+        SamplePosition((sint32)((uint32)frame + (side == 0 ? 0xFFFFFFFF : 1)), vector.words, direction);
+        floor_z = floor[2];
+        point_z = vector.words[2];
+        point_x = vector.words[0];
+        floor_x = floor[0];
+        input_x = position[0];
         dz = floor_z - point_z;
         dx = point_x - floor_x;
         x = point_x - input_x;
         point_dot = (uint32)(((sint64)(sint32)x * (sint32)dx) >> 12);
-        input_z = r_u32(position_offset + 8);
+        input_z = position[2];
         z = point_z - input_z;
         point_dot -= (uint32)(((sint64)(sint32)z * (sint32)dz) >> 12);
         x = floor_x - input_x;
@@ -331,7 +152,7 @@ sint32 ProjectPathFrame(uint32 definition_offset, sint32 frame, uint32 position_
         }
         if (side == 0)
         {
-            if (frame != r_s16(definition_offset + 26) - 1)
+            if (frame != (sint16)positions.metadata6 - 1)
                 continue;
             last_endpoint = 1;
         }
@@ -345,7 +166,7 @@ sint32 ProjectPathFrame(uint32 definition_offset, sint32 frame, uint32 position_
     result = frame;
     goto done;
 endpoint:
-    if (((uint32)scale << 1) < r_u32(floor_offset) - r_u32(position_offset) + (uint32)scale && ((uint32)scale << 1) < r_u32(floor_offset + 8) - r_u32(position_offset + 8) + (uint32)scale)
+    if (((uint32)scale << 1) < floor[0] - position[0] + (uint32)scale && ((uint32)scale << 1) < floor[2] - position[2] + (uint32)scale)
     {
         result = -1;
         goto done;
@@ -353,31 +174,31 @@ endpoint:
     if (point_dot == floor_dot)
     {
         for (i = 0; i < 3; ++i)
-            w_u32(vector + i * 4, r_u32(floor_offset + i * 4) - r_u32(position_offset + i * 4));
+            vector.words[i] = floor[i] - position[i];
     }
     else
     {
         reciprocal = 0x40000000 / (sint32)(point_dot - floor_dot);
         ratio = (uint32)(((sint64)(sint32)point_dot * reciprocal) >> 18);
-        w_u32(0x1F80030C, ratio);
-        x = r_u32(floor_offset) - r_u32(vector);
-        w_u32(vector, x);
-        y = r_u32(floor_offset + 4) - r_u32(vector + 4);
-        w_u32(vector + 4, y);
-        z = r_u32(floor_offset + 8) - r_u32(vector + 8);
-        w_u32(vector + 8, z);
+        fixed_math_result = ratio;
+        x = floor[0] - vector.words[0];
+        vector.words[0] = x;
+        y = floor[1] - vector.words[1];
+        vector.words[1] = y;
+        z = floor[2] - vector.words[2];
+        vector.words[2] = z;
         factor = (sint32)(ratio - 4096);
-        w_u32(vector, (uint32)(((sint64)(sint32)x * factor) >> 12));
-        w_u32(vector + 4, (uint32)(((sint64)(sint32)y * factor) >> 12));
-        w_u32(vector + 8, (uint32)(((sint64)(sint32)z * factor) >> 12));
+        vector.words[0] = (uint32)(((sint64)(sint32)x * factor) >> 12);
+        vector.words[1] = (uint32)(((sint64)(sint32)y * factor) >> 12);
+        vector.words[2] = (uint32)(((sint64)(sint32)z * factor) >> 12);
     }
-    x = (uint32)(r_s32(vector) >> 6);
-    z = (uint32)(r_s32(vector + 8) >> 6);
-    w_u32(vector + 4, 0);
+    x = (uint32)((sint32)vector.words[0] >> 6);
+    z = (uint32)((sint32)vector.words[2] >> 6);
+    vector.words[1] = 0;
     squared = x * x + z * z;
     limit = (uint32)(((sint64)scale * scale) >> 12);
     if (last_endpoint != 0)
-        result = (sint32)limit < (sint32)squared ? -1 : r_s16(definition_offset + 26);
+        result = (sint32)limit < (sint32)squared ? -1 : (sint16)positions.metadata6;
     else
         result = (sint32)limit < (sint32)squared ? -1 : 0;
     goto done;
@@ -386,134 +207,132 @@ interpolate:
     {
         reciprocal = 0x40000000 / (sint32)(floor_dot - point_dot);
         ratio = (uint32)(((sint64)(sint32)floor_dot * reciprocal) >> 18);
-        w_u32(0x1F80030C, ratio);
-        x = r_u32(vector) - r_u32(floor_offset);
-        w_u32(vector, x);
-        y = r_u32(vector + 4) - r_u32(floor_offset + 4);
-        w_u32(vector + 4, y);
-        z = r_u32(vector + 8) - r_u32(floor_offset + 8);
-        w_u32(vector + 8, z);
-        w_u32(vector, (uint32)(((sint64)(sint32)x * (sint32)ratio) >> 12));
-        w_u32(vector + 4, (uint32)(((sint64)(sint32)y * (sint32)ratio) >> 12));
-        w_u32(vector + 8, (uint32)(((sint64)(sint32)z * (sint32)ratio) >> 12));
+        fixed_math_result = ratio;
+        x = vector.words[0] - floor[0];
+        vector.words[0] = x;
+        y = vector.words[1] - floor[1];
+        vector.words[1] = y;
+        z = vector.words[2] - floor[2];
+        vector.words[2] = z;
+        vector.words[0] = (uint32)(((sint64)(sint32)x * (sint32)ratio) >> 12);
+        vector.words[1] = (uint32)(((sint64)(sint32)y * (sint32)ratio) >> 12);
+        vector.words[2] = (uint32)(((sint64)(sint32)z * (sint32)ratio) >> 12);
         for (i = 0; i < 3; ++i)
-            w_u32(floor_offset + i * 4, r_u32(floor_offset + i * 4) + r_u32(vector + i * 4));
+            floor[i] = floor[i] + vector.words[i];
     }
     result = frame;
 done:
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-static uint32 FindLinkedPathHeightFrame(uint32 definition_offset, uint32 position_offset, uint32 direction, sint32 height_offset)
+uint32 PathDefinition::FindLinkedHeightFrame(const uint32 *position, uint32 direction, sint32 height_offset) const
 {
+    const PathTransform *captured_path_transform;
     FUNCTION_MARKER(0x80024DE0, "SLUS_005.78");
-    uint32 saved_stack, delta, first, second, sample, temporary, matrix, value, x, y, z;
+    const MATRIX *matrix;
+    PathVector delta, first, second, sample, temporary;
+    uint32 value, x, y, z;
+    const PathTransform *matrix_transform;
     uint32 first_distance, second_distance, distance, best_distance, radius, extent, effective_direction;
     sint32 frames, low, high, frame, best_frame, nearer_first, choose_high;
     sint32 c0, c1, c2, c3, c4, c5, c6, c7, c8;
-    if (!r_u32(definition_offset + 32))
+    if (!positions.keys)
     {
         return 0;
     }
-    saved_stack = p2_guest_stack_pointer;
-    p2_guest_stack_pointer -= 80;
-    delta = p2_guest_stack_pointer;
-    first = delta + 16;
-    second = delta + 32;
-    sample = delta + 48;
-    temporary = delta + 64;
     effective_direction = direction ? direction : 16;
-    frames = r_s16(definition_offset + 26);
+    frames = (sint16)positions.metadata6;
     if (height_offset < 0)
     {
         low = 0;
-        matrix = r_u32(definition_offset + 40);
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
         high = frames - 1;
-        if (matrix)
+        if (matrix_transform)
         {
-            SampleVectorTrack(0, definition_offset + 20, temporary);
+            SampleVectorTrack(0, &positions, temporary.words);
             PushMatrix();
-            x = r_u32(matrix);
-            y = r_u32(matrix + 4);
+            x = xport_load_le32((const uint8 *)matrix);
+            y = xport_load_le32((const uint8 *)matrix + 4);
             xport_gte_write_control(0, x);
             xport_gte_write_control(1, y);
-            x = r_u32(matrix + 8);
-            y = r_u32(matrix + 12);
-            z = r_u32(matrix + 16);
+            x = xport_load_le32((const uint8 *)matrix + 8);
+            y = xport_load_le32((const uint8 *)matrix + 12);
+            z = xport_load_le32((const uint8 *)matrix + 16);
             xport_gte_write_control(2, x);
             xport_gte_write_control(3, y);
             xport_gte_write_control(4, z);
-            p2_sdk_8007ec64(temporary, first);
+            ApplyRotMatrixLV(&temporary.vector, &first.vector);
             PopMatrix();
-            x = r_u32(first);
-            y = r_u32(matrix + 20);
-            w_u32(first, x + y);
-            x = r_u32(first + 4);
-            y = r_u32(matrix + 24);
-            w_u32(first + 4, x + y);
-            x = r_u32(first + 8);
-            y = r_u32(matrix + 28);
-            w_u32(first + 8, x + y);
+            x = first.words[0];
+            y = (uint32)matrix->t[0];
+            first.words[0] = x + y;
+            x = first.words[1];
+            y = (uint32)matrix->t[1];
+            first.words[1] = x + y;
+            x = first.words[2];
+            y = (uint32)matrix->t[2];
+            first.words[2] = x + y;
         }
         else
         {
-            SampleVectorTrack(0, definition_offset + 20, first);
+            SampleVectorTrack(0, &positions, first.words);
         }
-        x = r_u32(first);
-        x -= r_u32(position_offset);
-        y = r_u32(first + 4);
-        w_u32(delta, x);
-        y -= r_u32(position_offset + 4);
-        z = r_u32(first + 8);
-        w_u32(delta + 4, y);
-        z -= r_u32(position_offset + 8);
-        w_u32(delta + 8, z);
-        w_u32(delta + 4, 0);
+        x = first.words[0];
+        x -= position[0];
+        y = first.words[1];
+        delta.words[0] = x;
+        y -= position[1];
+        z = first.words[2];
+        delta.words[1] = y;
+        z -= position[2];
+        delta.words[2] = z;
+        delta.words[1] = 0;
         x = (uint32)((sint32)x >> 6);
         z = (uint32)((sint32)z >> 6);
         first_distance = x * x + z * z;
-        matrix = r_u32(definition_offset + 40);
-        if (matrix)
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        if (matrix_transform)
         {
-            SampleVectorTrack(high, definition_offset + 20, temporary);
+            SampleVectorTrack(high, &positions, temporary.words);
             PushMatrix();
-            x = r_u32(matrix);
-            y = r_u32(matrix + 4);
+            x = xport_load_le32((const uint8 *)matrix);
+            y = xport_load_le32((const uint8 *)matrix + 4);
             xport_gte_write_control(0, x);
             xport_gte_write_control(1, y);
-            x = r_u32(matrix + 8);
-            y = r_u32(matrix + 12);
-            z = r_u32(matrix + 16);
+            x = xport_load_le32((const uint8 *)matrix + 8);
+            y = xport_load_le32((const uint8 *)matrix + 12);
+            z = xport_load_le32((const uint8 *)matrix + 16);
             xport_gte_write_control(2, x);
             xport_gte_write_control(3, y);
             xport_gte_write_control(4, z);
-            p2_sdk_8007ec64(temporary, second);
+            ApplyRotMatrixLV(&temporary.vector, &second.vector);
             PopMatrix();
-            x = r_u32(second);
-            y = r_u32(matrix + 20);
-            w_u32(second, x + y);
-            x = r_u32(second + 4);
-            y = r_u32(matrix + 24);
-            w_u32(second + 4, x + y);
-            x = r_u32(second + 8);
-            y = r_u32(matrix + 28);
-            w_u32(second + 8, x + y);
+            x = second.words[0];
+            y = (uint32)matrix->t[0];
+            second.words[0] = x + y;
+            x = second.words[1];
+            y = (uint32)matrix->t[1];
+            second.words[1] = x + y;
+            x = second.words[2];
+            y = (uint32)matrix->t[2];
+            second.words[2] = x + y;
         }
         else
         {
-            SampleVectorTrack(high, definition_offset + 20, second);
+            SampleVectorTrack(high, &positions, second.words);
         }
-        x = r_u32(second);
-        x -= r_u32(position_offset);
-        y = r_u32(second + 4);
-        w_u32(delta, x);
-        y -= r_u32(position_offset + 4);
-        z = r_u32(second + 8);
-        w_u32(delta + 4, y);
-        z -= r_u32(position_offset + 8);
-        w_u32(delta + 8, z);
-        w_u32(delta + 4, 0);
+        x = second.words[0];
+        x -= position[0];
+        y = second.words[1];
+        delta.words[0] = x;
+        y -= position[1];
+        z = second.words[2];
+        delta.words[1] = y;
+        z -= position[2];
+        delta.words[2] = z;
+        delta.words[1] = 0;
         x = (uint32)((sint32)x >> 6);
         z = (uint32)((sint32)z >> 6);
         second_distance = x * x + z * z;
@@ -530,152 +349,140 @@ static uint32 FindLinkedPathHeightFrame(uint32 definition_offset, uint32 positio
             if ((sint32)(second_distance << 2) >= (sint32)first_distance)
                 frame = high >> 2;
         }
-        value = r_u32(position_offset + 4);
-        if ((sint32)value < r_s32(first + 4) || r_s32(second + 4) < (sint32)value)
+        value = position[1];
+        if ((sint32)value < (sint32)first.words[1] || (sint32)second.words[1] < (sint32)value)
         {
-            p2_guest_stack_pointer = saved_stack;
             return -1;
         }
         for (;;)
         {
-            matrix = r_u32(definition_offset + 40);
-            if (matrix)
+            matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+            matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+            if (matrix_transform)
             {
-                SampleVectorTrack(frame, definition_offset + 20, temporary);
+                SampleVectorTrack(frame, &positions, temporary.words);
                 PushMatrix();
-                x = r_u32(matrix);
-                y = r_u32(matrix + 4);
+                x = xport_load_le32((const uint8 *)matrix);
+                y = xport_load_le32((const uint8 *)matrix + 4);
                 xport_gte_write_control(0, x);
                 xport_gte_write_control(1, y);
-                x = r_u32(matrix + 8);
-                y = r_u32(matrix + 12);
-                z = r_u32(matrix + 16);
+                x = xport_load_le32((const uint8 *)matrix + 8);
+                y = xport_load_le32((const uint8 *)matrix + 12);
+                z = xport_load_le32((const uint8 *)matrix + 16);
                 xport_gte_write_control(2, x);
                 xport_gte_write_control(3, y);
                 xport_gte_write_control(4, z);
-                p2_sdk_8007ec64(temporary, sample);
+                ApplyRotMatrixLV(&temporary.vector, &sample.vector);
                 PopMatrix();
-                x = r_u32(sample);
-                y = r_u32(matrix + 20);
-                w_u32(sample, x + y);
-                x = r_u32(sample + 4);
-                y = r_u32(matrix + 24);
-                w_u32(sample + 4, x + y);
-                x = r_u32(sample + 8);
-                y = r_u32(matrix + 28);
-                w_u32(sample + 8, x + y);
+                x = sample.words[0];
+                y = (uint32)matrix->t[0];
+                sample.words[0] = x + y;
+                x = sample.words[1];
+                y = (uint32)matrix->t[1];
+                sample.words[1] = x + y;
+                x = sample.words[2];
+                y = (uint32)matrix->t[2];
+                sample.words[2] = x + y;
             }
             else
             {
-                SampleVectorTrack(frame, definition_offset + 20, sample);
+                SampleVectorTrack(frame, &positions, sample.words);
             }
-            value = r_u32(position_offset + 4);
-            y = r_u32(sample + 4);
+            value = position[1];
+            y = sample.words[1];
             choose_high = nearer_first ? (sint32)value < (sint32)y : (sint32)y >= (sint32)value;
-            x = r_u32(sample);
-            y = r_u32(sample + 4);
-            z = r_u32(sample + 8);
+            x = sample.words[0];
+            y = sample.words[1];
+            z = sample.words[2];
             if (choose_high)
             {
-                w_u32(second, x);
-                w_u32(second + 4, y);
-                w_u32(second + 8, z);
+                second.words[0] = x;
+                second.words[1] = y;
+                second.words[2] = z;
                 high = frame;
             }
             else
             {
-                w_u32(first, x);
-                w_u32(first + 4, y);
-                w_u32(first + 8, z);
+                first.words[0] = x;
+                first.words[1] = y;
+                first.words[2] = z;
                 low = frame;
             }
             frame = (sint32)((uint32)low + (uint32)high) >> 1;
             if (low == frame)
             {
                 if (!direction)
-                    frame = (sint32)((uint32)(sint32)r_s16(definition_offset + 26) - (uint32)frame - 1);
-                p2_guest_stack_pointer = saved_stack;
+                    frame = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)frame - 1);
                 return frame;
             }
         }
     }
     radius = (uint32)height_offset;
     extent = radius << 1;
-    matrix = r_u32(definition_offset + 40);
-    if (matrix)
+    matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+    matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+    if (matrix_transform)
     {
-        value = r_u16(matrix);
+        value = (uint16)matrix->m[0][0];
         c0 = (sint16)value;
-        w_u16(second, value);
-        value = r_u16(r_u32(definition_offset + 40) + 6);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][0];
         c1 = (sint16)value;
-        w_u16(second + 2, value);
-        value = r_u16(r_u32(definition_offset + 40) + 12);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][0];
         c2 = (sint16)value;
-        w_u16(second + 4, value);
-        value = r_u16(r_u32(definition_offset + 40) + 2);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[0][1];
         c3 = (sint16)value;
-        w_u16(second + 6, value);
-        value = r_u16(r_u32(definition_offset + 40) + 8);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][1];
         c4 = (sint16)value;
-        w_u16(second + 8, value);
-        value = r_u16(r_u32(definition_offset + 40) + 14);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][1];
         c5 = (sint16)value;
-        w_u16(second + 10, value);
-        value = r_u16(r_u32(definition_offset + 40) + 4);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[0][2];
         c6 = (sint16)value;
-        w_u16(second + 12, value);
-        value = r_u16(r_u32(definition_offset + 40) + 10);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][2];
         c7 = (sint16)value;
-        w_u16(second + 14, value);
-        value = r_u16(r_u32(definition_offset + 40) + 16);
+        value = (uint16)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][2];
         c8 = (sint16)value;
-        w_u16(second + 16, value);
-        x = 0 - r_u32(r_u32(definition_offset + 40) + 20);
-        w_u32(delta, x);
-        y = 0 - r_u32(r_u32(definition_offset + 40) + 24);
-        w_u32(delta + 4, y);
-        z = 0 - r_u32(r_u32(definition_offset + 40) + 28);
-        w_u32(delta + 8, z);
-        x += r_u32(position_offset);
-        w_u32(sample + 8, x);
-        y += r_u32(position_offset + 4);
-        w_u32(sample + 12, y);
-        z += r_u32(position_offset + 8);
-        w_u32(temporary, z);
+        x = 0 - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[0];
+        delta.words[0] = x;
+        y = 0 - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[1];
+        delta.words[1] = y;
+        z = 0 - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[2];
+        delta.words[2] = z;
+        x += position[0];
+        y += position[1];
+        z += position[2];
         value = (uint32)(((sint64)(sint32)x * c0) >> 12);
         value += (uint32)(((sint64)(sint32)y * c1) >> 12);
         value += (uint32)(((sint64)(sint32)z * c2) >> 12);
-        w_u32(first, value);
+        first.words[0] = value;
         value = (uint32)(((sint64)(sint32)x * c3) >> 12);
         value += (uint32)(((sint64)(sint32)y * c4) >> 12);
         value += (uint32)(((sint64)(sint32)z * c5) >> 12);
-        w_u32(first + 4, value);
+        first.words[1] = value;
         value = (uint32)(((sint64)(sint32)x * c6) >> 12);
         value += (uint32)(((sint64)(sint32)y * c7) >> 12);
         value += (uint32)(((sint64)(sint32)z * c8) >> 12);
-        w_u32(first + 8, value);
-        position_offset = first;
+        first.words[2] = value;
+        position = first.words;
     }
     frame = 0;
     best_frame = -1;
     best_distance = 0x7FFFF000;
     do
     {
-        SampleVectorTrack(frame, definition_offset + 20, delta);
-        x = r_u32(delta);
-        x -= r_u32(position_offset);
-        w_u32(delta, x);
+        SampleVectorTrack(frame, &positions, delta.words);
+        x = delta.words[0];
+        x -= position[0];
+        delta.words[0] = x;
         if (x + radius < extent)
         {
-            y = r_u32(delta + 4);
-            y -= r_u32(position_offset + 4);
-            w_u32(delta + 4, y);
+            y = delta.words[1];
+            y -= position[1];
+            delta.words[1] = y;
             if (y + radius < extent)
             {
-                z = r_u32(delta + 8);
-                z -= r_u32(position_offset + 8);
-                w_u32(delta + 8, z);
+                z = delta.words[2];
+                z -= position[2];
+                delta.words[2] = z;
                 if (z + radius < extent)
                 {
                     x = (uint32)((sint32)x >> 6);
@@ -694,96 +501,93 @@ static uint32 FindLinkedPathHeightFrame(uint32 definition_offset, uint32 positio
         frame = (sint32)((uint32)frame + 1);
     } while (frames > 0);
     if (best_frame >= 0 && !effective_direction)
-        best_frame = (sint32)((uint32)(sint32)r_s16(definition_offset + 26) - (uint32)best_frame - 1);
-    p2_guest_stack_pointer = saved_stack;
+        best_frame = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)best_frame - 1);
     return best_frame;
 }
 
-uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uint32 direction, sint32 height_offset)
+uint32 PathDefinition::FindHeightFrame(const uint32 *position, uint32 direction, sint32 height_offset) const
 {
+    const PathTransform *captured_path_transform;
     FUNCTION_MARKER(0x800231DC, "SLUS_005.78");
-    uint32 saved_stack, point, left, right, middle, raw, query, flags, matrix, destination, index;
+    const MATRIX *matrix;
+    PathVector point, left, right, middle, raw, query;
+    uint32 *destination;
+    uint32 flags, index;
+    const PathTransform *matrix_transform;
     uint32 x, y, z, a, b, c, d, dx, dy, dz, distance, left_distance, right_distance;
     uint32 first_distance, best_distance, radius, span, forward, outside, unresolved, move_left;
     sint32 best, remaining, frame, low, high, candidate, ca, cb, c0, c1, c2, c3, c4, c5, c6, c7, c8;
     sint64 product;
-    if (r_u32(definition_offset + 32) == 0)
+    if (positions.keys == 0)
     {
         return 0;
     }
-    flags = r_u32(definition_offset + 16);
+    flags = this->flags;
     if ((flags & 0x10000) != 0)
-        return FindLinkedPathHeightFrame(definition_offset, position_offset, direction, height_offset);
-    saved_stack = p2_guest_stack_pointer;
-    p2_guest_stack_pointer -= 0x60;
-    point = p2_guest_stack_pointer;
-    left = point + 16;
-    right = point + 32;
-    middle = point + 48;
-    raw = point + 64;
-    query = point + 80;
+        return FindLinkedHeightFrame(position, direction, height_offset);
     best = -1;
     best_distance = 0x7FFFF000;
-    remaining = r_s16(definition_offset + 26);
+    remaining = (sint16)positions.metadata6;
     frame = 0;
     if (height_offset >= 0)
     {
         radius = (uint32)height_offset;
         span = radius << 1;
-        matrix = r_u32(definition_offset + 40);
-        if (matrix != 0)
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        if (matrix_transform != 0)
         {
-            c0 = r_s16(matrix);
-            c1 = r_s16(r_u32(definition_offset + 40) + 6);
-            c2 = r_s16(r_u32(definition_offset + 40) + 12);
-            c3 = r_s16(r_u32(definition_offset + 40) + 2);
-            c4 = r_s16(r_u32(definition_offset + 40) + 8);
-            c5 = r_s16(r_u32(definition_offset + 40) + 14);
-            c6 = r_s16(r_u32(definition_offset + 40) + 4);
-            c7 = r_s16(r_u32(definition_offset + 40) + 10);
-            c8 = r_s16(r_u32(definition_offset + 40) + 16);
-            x = 0u - r_u32(r_u32(definition_offset + 40) + 20);
-            y = 0u - r_u32(r_u32(definition_offset + 40) + 24);
-            z = 0u - r_u32(r_u32(definition_offset + 40) + 28);
-            x += r_u32(position_offset);
-            y += r_u32(position_offset + 4);
-            z += r_u32(position_offset + 8);
+            c0 = matrix->m[0][0];
+            c1 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][0];
+            c2 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][0];
+            c3 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[0][1];
+            c4 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][1];
+            c5 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][1];
+            c6 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[0][2];
+            c7 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[1][2];
+            c8 = ((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->m[2][2];
+            x = 0u - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[0];
+            y = 0u - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[1];
+            z = 0u - (uint32)((const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0))->t[2];
+            x += position[0];
+            y += position[1];
+            z += position[2];
             product = (sint64)(sint32)x * c0;
             a = (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)y * c1;
             a += (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)z * c2;
             a += (uint32)((uint64)product >> 12);
-            w_u32(query, a);
+            query.words[0] = a;
             product = (sint64)(sint32)x * c3;
             a = (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)y * c4;
             a += (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)z * c5;
             a += (uint32)((uint64)product >> 12);
-            w_u32(query + 4, a);
+            query.words[1] = a;
             product = (sint64)(sint32)x * c6;
             a = (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)y * c7;
             a += (uint32)((uint64)product >> 12);
             product = (sint64)(sint32)z * c8;
             a += (uint32)((uint64)product >> 12);
-            w_u32(query + 8, a);
-            position_offset = query;
+            query.words[2] = a;
+            position = query.words;
         }
         do
         {
-            SampleVectorTrack(frame, definition_offset + 20, point);
-            dx = r_u32(point) - r_u32(position_offset);
-            w_u32(point, dx);
+            SampleVectorTrack(frame, &positions, point.words);
+            dx = point.words[0] - position[0];
+            point.words[0] = dx;
             if (dx + radius < span)
             {
-                dy = r_u32(point + 4) - r_u32(position_offset + 4);
-                w_u32(point + 4, dy);
+                dy = point.words[1] - position[1];
+                point.words[1] = dy;
                 if (dy + radius < span)
                 {
-                    dz = r_u32(point + 8) - r_u32(position_offset + 8);
-                    w_u32(point + 8, dz);
+                    dz = point.words[2] - position[2];
+                    point.words[2] = dz;
                     if (dz + radius < span)
                     {
                         a = (uint32)((sint32)dx >> 6);
@@ -802,88 +606,90 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
             frame = (sint32)((uint32)frame + 1);
         } while (remaining > 0);
         if (best >= 0 && direction == 0)
-            best = (sint32)((uint32)(sint32)r_s16(definition_offset + 26) - (uint32)best - 1);
+            best = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)best - 1);
         goto finish;
     }
-    radius = (uint32)(sint32)r_s16(definition_offset + 38) << 5;
+    radius = (uint32)(sint32)search_radius << 5;
     span = radius << 1;
     if ((flags & 2) != 0)
     {
         first_distance = 0x7FFFF000;
-        matrix = r_u32(definition_offset + 40);
-        if (matrix != 0)
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        if (matrix_transform != 0)
         {
-            SampleVectorTrack(0, definition_offset + 20, raw);
+            SampleVectorTrack(0, &positions, raw.words);
             PushMatrix();
-            x = r_u32(matrix);
-            y = r_u32(matrix + 4);
+            x = xport_load_le32((const uint8 *)matrix);
+            y = xport_load_le32((const uint8 *)matrix + 4);
             xport_gte_write_control(0, x);
             xport_gte_write_control(1, y);
-            x = r_u32(matrix + 8);
-            y = r_u32(matrix + 12);
-            z = r_u32(matrix + 16);
+            x = xport_load_le32((const uint8 *)matrix + 8);
+            y = xport_load_le32((const uint8 *)matrix + 12);
+            z = xport_load_le32((const uint8 *)matrix + 16);
             xport_gte_write_control(2, x);
             xport_gte_write_control(3, y);
             xport_gte_write_control(4, z);
-            p2_sdk_8007ec64(raw, left);
+            ApplyRotMatrixLV(&raw.vector, &left.vector);
             PopMatrix();
-            w_u32(left, r_u32(left) + r_u32(matrix + 20));
-            w_u32(left + 4, r_u32(left + 4) + r_u32(matrix + 24));
-            w_u32(left + 8, r_u32(left + 8) + r_u32(matrix + 28));
+            left.words[0] = left.words[0] + (uint32)matrix->t[0];
+            left.words[1] = left.words[1] + (uint32)matrix->t[1];
+            left.words[2] = left.words[2] + (uint32)matrix->t[2];
         }
         else
         {
-            SampleVectorTrack(0, definition_offset + 20, left);
+            SampleVectorTrack(0, &positions, left.words);
         }
         for (;;)
         {
-            matrix = r_u32(definition_offset + 40);
-            if (matrix != 0)
+            matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+            matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+            if (matrix_transform != 0)
             {
-                SampleVectorTrack(frame, definition_offset + 20, raw);
+                SampleVectorTrack(frame, &positions, raw.words);
                 PushMatrix();
-                x = r_u32(matrix);
-                y = r_u32(matrix + 4);
+                x = xport_load_le32((const uint8 *)matrix);
+                y = xport_load_le32((const uint8 *)matrix + 4);
                 xport_gte_write_control(0, x);
                 xport_gte_write_control(1, y);
-                x = r_u32(matrix + 8);
-                y = r_u32(matrix + 12);
-                z = r_u32(matrix + 16);
+                x = xport_load_le32((const uint8 *)matrix + 8);
+                y = xport_load_le32((const uint8 *)matrix + 12);
+                z = xport_load_le32((const uint8 *)matrix + 16);
                 xport_gte_write_control(2, x);
                 xport_gte_write_control(3, y);
                 xport_gte_write_control(4, z);
-                p2_sdk_8007ec64(raw, point);
+                ApplyRotMatrixLV(&raw.vector, &point.vector);
                 PopMatrix();
-                w_u32(point, r_u32(point) + r_u32(matrix + 20));
-                w_u32(point + 4, r_u32(point + 4) + r_u32(matrix + 24));
-                w_u32(point + 8, r_u32(point + 8) + r_u32(matrix + 28));
+                point.words[0] = point.words[0] + (uint32)matrix->t[0];
+                point.words[1] = point.words[1] + (uint32)matrix->t[1];
+                point.words[2] = point.words[2] + (uint32)matrix->t[2];
             }
             else
             {
-                SampleVectorTrack(frame, definition_offset + 20, point);
+                SampleVectorTrack(frame, &positions, point.words);
             }
-            dx = r_u32(point) - r_u32(position_offset);
-            dy = r_u32(point + 4) - r_u32(position_offset + 4);
-            dz = r_u32(point + 8) - r_u32(position_offset + 8);
+            dx = point.words[0] - position[0];
+            dy = point.words[1] - position[1];
+            dz = point.words[2] - position[2];
             if (frame == 0)
             {
             repeat_last_point:
-                if ((sint32)(dy - 40960) <= 0 || (r_u32(definition_offset + 16) & 0x11) != 0)
+                if ((sint32)(dy - 40960) <= 0 || (this->flags & 0x11) != 0)
                     dy = 0;
             }
-            if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (r_u32(definition_offset + 16) & 0x11) != 0))
+            if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (this->flags & 0x11) != 0))
             {
-                x = r_u32(left);
-                z = r_u32(left + 8);
-                a = r_u32(point);
-                b = r_u32(point + 8);
-                c = r_u32(position_offset);
-                d = r_u32(position_offset + 8);
+                x = left.words[0];
+                z = left.words[2];
+                a = point.words[0];
+                b = point.words[2];
+                c = position[0];
+                d = position[2];
                 product = (sint64)(sint32)(x - c) * (sint32)(x - a);
                 x = (uint32)((uint64)product >> 12);
                 product = (sint64)(sint32)(z - d) * (sint32)(b - z);
                 ca = (sint32)(x - (uint32)((uint64)product >> 12));
-                product = (sint64)(sint32)(a - c) * (sint32)(r_u32(left) - a);
+                product = (sint64)(sint32)(a - c) * (sint32)(left.words[0] - a);
                 x = (uint32)((uint64)product >> 12);
                 product = (sint64)(sint32)(b - d) * (sint32)(b - z);
                 cb = (sint32)(x - (uint32)((uint64)product >> 12));
@@ -903,12 +709,12 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
                     }
                 }
             }
-            x = r_u32(point);
-            y = r_u32(point + 4);
-            z = r_u32(point + 8);
-            w_u32(left, x);
-            w_u32(left + 4, y);
-            w_u32(left + 8, z);
+            x = point.words[0];
+            y = point.words[1];
+            z = point.words[2];
+            left.words[0] = x;
+            left.words[1] = y;
+            left.words[2] = z;
             remaining = (sint32)((uint32)remaining - 1);
             frame = (sint32)((uint32)frame + 1);
             if (remaining > 0)
@@ -921,7 +727,7 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
             goto repeat_last_point;
         }
         if (best >= 0 && direction == 0)
-            best = (sint32)((uint32)(sint32)r_s16(definition_offset + 26) - (uint32)best);
+            best = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)best);
         goto finish;
     }
     low = 0;
@@ -929,35 +735,36 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
     for (index = 0; index < 2; ++index)
     {
         candidate = index == 0 ? 0 : high;
-        destination = index == 0 ? left : right;
-        matrix = r_u32(definition_offset + 40);
-        if (matrix != 0)
+        destination = index == 0 ? left.words : right.words;
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        if (matrix_transform != 0)
         {
-            SampleVectorTrack(candidate, definition_offset + 20, raw);
+            SampleVectorTrack(candidate, &positions, raw.words);
             PushMatrix();
-            x = r_u32(matrix);
-            y = r_u32(matrix + 4);
+            x = xport_load_le32((const uint8 *)matrix);
+            y = xport_load_le32((const uint8 *)matrix + 4);
             xport_gte_write_control(0, x);
             xport_gte_write_control(1, y);
-            x = r_u32(matrix + 8);
-            y = r_u32(matrix + 12);
-            z = r_u32(matrix + 16);
+            x = xport_load_le32((const uint8 *)matrix + 8);
+            y = xport_load_le32((const uint8 *)matrix + 12);
+            z = xport_load_le32((const uint8 *)matrix + 16);
             xport_gte_write_control(2, x);
             xport_gte_write_control(3, y);
             xport_gte_write_control(4, z);
-            p2_sdk_8007ec64(raw, destination);
+            ApplyRotMatrixLV(&raw.vector, (VECTOR *)destination);
             PopMatrix();
-            w_u32(destination, r_u32(destination) + r_u32(matrix + 20));
-            w_u32(destination + 4, r_u32(destination + 4) + r_u32(matrix + 24));
-            w_u32(destination + 8, r_u32(destination + 8) + r_u32(matrix + 28));
+            destination[0] = destination[0] + (uint32)matrix->t[0];
+            destination[1] = destination[1] + (uint32)matrix->t[1];
+            destination[2] = destination[2] + (uint32)matrix->t[2];
         }
         else
         {
-            SampleVectorTrack(candidate, definition_offset + 20, destination);
+            SampleVectorTrack(candidate, &positions, destination);
         }
-        dx = r_u32(destination) - r_u32(position_offset);
-        dy = r_u32(destination + 4) - r_u32(position_offset + 4);
-        dz = r_u32(destination + 8) - r_u32(position_offset + 8);
+        dx = destination[0] - position[0];
+        dy = destination[1] - position[1];
+        dz = destination[2] - position[2];
         a = (uint32)((sint32)dx >> 6);
         b = (uint32)((sint32)dz >> 6);
         distance = a * a + b * b;
@@ -971,7 +778,7 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
         {
             right_distance = distance;
             if (distance < 0x4000 && (sint32)distance < (sint32)left_distance)
-                best = r_s16(definition_offset + 26);
+                best = (sint16)positions.metadata6;
         }
     }
     forward = left_distance < right_distance;
@@ -989,38 +796,39 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
     unresolved = 1;
     do
     {
-        matrix = r_u32(definition_offset + 40);
-        if (matrix != 0)
+        matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        if (matrix_transform != 0)
         {
-            SampleVectorTrack(candidate, definition_offset + 20, raw);
+            SampleVectorTrack(candidate, &positions, raw.words);
             PushMatrix();
-            x = r_u32(matrix);
-            y = r_u32(matrix + 4);
+            x = xport_load_le32((const uint8 *)matrix);
+            y = xport_load_le32((const uint8 *)matrix + 4);
             xport_gte_write_control(0, x);
             xport_gte_write_control(1, y);
-            x = r_u32(matrix + 8);
-            y = r_u32(matrix + 12);
-            z = r_u32(matrix + 16);
+            x = xport_load_le32((const uint8 *)matrix + 8);
+            y = xport_load_le32((const uint8 *)matrix + 12);
+            z = xport_load_le32((const uint8 *)matrix + 16);
             xport_gte_write_control(2, x);
             xport_gte_write_control(3, y);
             xport_gte_write_control(4, z);
-            p2_sdk_8007ec64(raw, middle);
+            ApplyRotMatrixLV(&raw.vector, &middle.vector);
             PopMatrix();
-            w_u32(middle, r_u32(middle) + r_u32(matrix + 20));
-            w_u32(middle + 4, r_u32(middle + 4) + r_u32(matrix + 24));
-            w_u32(middle + 8, r_u32(middle + 8) + r_u32(matrix + 28));
+            middle.words[0] = middle.words[0] + (uint32)matrix->t[0];
+            middle.words[1] = middle.words[1] + (uint32)matrix->t[1];
+            middle.words[2] = middle.words[2] + (uint32)matrix->t[2];
         }
         else
         {
-            SampleVectorTrack(candidate, definition_offset + 20, middle);
+            SampleVectorTrack(candidate, &positions, middle.words);
         }
-        destination = forward != 0 ? left : right;
-        x = r_u32(destination);
-        z = r_u32(destination + 8);
-        a = r_u32(middle);
-        b = r_u32(middle + 8);
-        c = r_u32(position_offset);
-        d = r_u32(position_offset + 8);
+        destination = forward != 0 ? left.words : right.words;
+        x = destination[0];
+        z = destination[2];
+        a = middle.words[0];
+        b = middle.words[2];
+        c = position[0];
+        d = position[2];
         product = (sint64)(sint32)(x - c) * (sint32)(x - a);
         y = (uint32)((uint64)product >> 12);
         product = (sint64)(sint32)(z - d) * (sint32)(b - z);
@@ -1033,31 +841,31 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
         if (outside != 0 && unresolved != 0)
             unresolved = (ca ^ cb) > 0 && ca != 0 && cb != 0;
         move_left = forward != 0 ? outside == 0 : outside != 0;
-        x = r_u32(middle);
-        y = r_u32(middle + 4);
-        z = r_u32(middle + 8);
+        x = middle.words[0];
+        y = middle.words[1];
+        z = middle.words[2];
         if (move_left != 0)
         {
-            w_u32(left, x);
-            w_u32(left + 4, y);
-            w_u32(left + 8, z);
+            left.words[0] = x;
+            left.words[1] = y;
+            left.words[2] = z;
             low = candidate;
         }
         else
         {
-            w_u32(right, x);
-            w_u32(right + 4, y);
-            w_u32(right + 8, z);
+            right.words[0] = x;
+            right.words[1] = y;
+            right.words[2] = z;
             high = candidate;
         }
         candidate = (sint32)((uint32)low + (uint32)high) >> 1;
     } while (low != candidate);
-    if (unresolved == 0 && (forward != 0 ? high < r_s16(definition_offset + 26) - 1 : low > 0))
+    if (unresolved == 0 && (forward != 0 ? high < (sint16)positions.metadata6 - 1 : low > 0))
     {
-        dx = r_u32(right) - r_u32(position_offset);
-        dy = r_u32(right + 4) - r_u32(position_offset + 4);
-        dz = r_u32(right + 8) - r_u32(position_offset + 8);
-        if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (r_u32(definition_offset + 16) & 0x11) != 0))
+        dx = right.words[0] - position[0];
+        dy = right.words[1] - position[1];
+        dz = right.words[2] - position[2];
+        if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (this->flags & 0x11) != 0))
         {
             if (direction != 0)
                 high = (sint32)((uint32)high - 1);
@@ -1066,23 +874,23 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
             else
             {
                 best = high;
-                remaining = r_s16(definition_offset + 26);
+                remaining = (sint16)positions.metadata6;
                 if (high >= remaining)
                     best = remaining - 1;
             }
         }
         else
         {
-            dx = r_u32(left) - r_u32(position_offset);
-            dy = r_u32(left + 4) - r_u32(position_offset + 4);
-            dz = r_u32(left + 8) - r_u32(position_offset + 8);
-            if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (r_u32(definition_offset + 16) & 0x11) != 0))
+            dx = left.words[0] - position[0];
+            dy = left.words[1] - position[1];
+            dz = left.words[2] - position[2];
+            if (dx + radius < span && dz + radius < span && ((sint32)(dy - 40960) <= 0 || (this->flags & 0x11) != 0))
             {
                 if (low <= 0)
                     low = 1;
                 else
                 {
-                    remaining = r_s16(definition_offset + 26);
+                    remaining = (sint16)positions.metadata6;
                     if (low >= remaining)
                         low = remaining - 1;
                 }
@@ -1093,244 +901,252 @@ uint32 FindPathHeightFrame(uint32 definition_offset, uint32 position_offset, uin
     if (best >= 0)
     {
         if (direction == 0)
-            best = (sint32)((uint32)(sint32)r_s16(definition_offset + 26) - (uint32)best);
-        remaining = r_s16(definition_offset + 26);
+            best = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)best);
+        remaining = (sint16)positions.metadata6;
         if (best == remaining - 1)
             best = remaining - 2;
     }
 finish:
-    p2_guest_stack_pointer = saved_stack;
     return best;
 }
 
-static uint32 CanChangePath(uint32 object_offset, uint32 position_offset, uint32 direction)
+uint32 AnimatedObject::CanChangePath(const uint32 *position, uint32 direction) const
 {
     FUNCTION_MARKER(0x8003D190, "SLUS_005.78");
-    uint32 scene, flags, path, saved_stack, floor, x, y, z, result;
+    PathVector floor;
+    const ScenePath *path, *path_view;
+    uint32 scene, flags, x, y, z, result;
     sint32 frame;
-    scene = r_u32(0x8008A114);
-    flags = r_u32(object_offset + 228);
-    path = r_u32(scene + 136);
+    scene = OriginalDefaults::SceneContextIdentity;
+    flags = this->path_flags;
+    path = camera_motion.path;
+    path_view = (const ScenePath *)(path);
     if ((flags & 6) == 2)
     {
         return 0;
     }
-    saved_stack = p2_guest_stack_pointer;
-    p2_guest_stack_pointer -= 16;
-    floor = p2_guest_stack_pointer;
-    if ((flags & 4) && p2_func_8005a430() != path)
+    if ((flags & 4) && ReadCharacterConstrainedPath() != path)
     {
-        frame = FindPathHeightFrame(r_u32(path + 36), position_offset, direction, -40960);
+        frame = ((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->FindHeightFrame(position, direction, -40960);
         if (frame != -1)
         {
-            frame = ProjectPathFrame(r_u32(path + 36), frame, position_offset, floor, direction, 4096);
+            frame = ((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->ProjectFrame(frame, position, floor.words, direction, 4096);
         }
         if (frame >= 0)
         {
-            x = r_u32(floor);
-            x -= r_u32(position_offset);
+            x = floor.words[0];
+            x -= position[0];
             if (x + 24576 > 0xC000)
                 frame = -1;
             else
             {
-                z = r_u32(floor + 8);
-                z -= r_u32(position_offset + 8);
+                z = floor.words[2];
+                z -= position[2];
                 if (z + 24576 > 0xC000)
                     frame = -1;
             }
         }
         if (frame != -1)
         {
-            x = r_u32(floor);
-            x -= r_u32(position_offset);
-            y = r_u32(floor + 4);
-            w_u32(floor, x);
-            y -= r_u32(position_offset + 4);
-            z = r_u32(floor + 8);
-            w_u32(floor + 4, y);
-            z -= r_u32(position_offset + 8);
-            w_u32(floor + 8, z);
+            x = floor.words[0];
+            x -= position[0];
+            y = floor.words[1];
+            floor.words[0] = x;
+            y -= position[1];
+            z = floor.words[2];
+            floor.words[1] = y;
+            z -= position[2];
+            floor.words[2] = z;
             if ((sint32)y <= 0)
             {
-                p2_guest_stack_pointer = saved_stack;
                 return 0;
             }
         }
     }
     result = 1;
-    if ((r_u32(object_offset + 228) & 0x20) && (p2_func_8005a3fc() & 0xFF) == 0)
+    if ((this->path_flags & 0x20) && (IsCharacterAnchorPathActive() & 0xFF) == 0)
     {
-        frame = FindPathHeightFrame(r_u32(path + 36), position_offset, direction, -40960);
+        frame = ((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->FindHeightFrame(position, direction, -40960);
         if (frame != -1)
         {
-            frame = ProjectPathFrame(r_u32(path + 36), frame, position_offset, floor, direction, 4096);
+            frame = ((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->ProjectFrame(frame, position, floor.words, direction, 4096);
         }
         if (frame >= 0)
         {
-            x = r_u32(floor);
-            x -= r_u32(position_offset);
+            x = floor.words[0];
+            x -= position[0];
             if (x + 24576 > 0xC000)
                 frame = -1;
             else
             {
-                z = r_u32(floor + 8);
-                z -= r_u32(position_offset + 8);
+                z = floor.words[2];
+                z -= position[2];
                 if (z + 24576 > 0xC000)
                     frame = -1;
             }
         }
         if (frame != -1)
         {
-            x = r_u32(floor);
-            x -= r_u32(position_offset);
-            y = r_u32(floor + 4);
-            w_u32(floor, x);
-            y -= r_u32(position_offset + 4);
-            z = r_u32(floor + 8);
-            w_u32(floor + 4, y);
-            z -= r_u32(position_offset + 8);
-            w_u32(floor + 8, z);
+            x = floor.words[0];
+            x -= position[0];
+            y = floor.words[1];
+            floor.words[0] = x;
+            y -= position[1];
+            z = floor.words[2];
+            floor.words[1] = y;
+            z -= position[2];
+            floor.words[2] = z;
             if ((sint32)y <= 0)
                 result = 0;
         }
     }
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-static uint32 SelectAdjacentPath(uint32 segment_offset, uint32 frame_offset, uint32 direction, uint32 flags)
+const ScenePath *ScenePath::SelectAdjacent(uint32 *frame_word, uint32 direction, uint32 flags) const
 {
     FUNCTION_MARKER(0x8003ADC0, "SLUS_005.78");
-    uint32 old_frame, current, selected, mask, definition, value, first_frame;
-    old_frame = r_u32(frame_offset);
-    /* Forced transitions use the same frame side as ordinary transitions */
+    const ScenePath *current;
+    const ScenePath *selected;
+    const ScenePath *selected_view;
+    const PathDefinition *definition;
+    uint32 old_frame, mask, first_frame;
+    old_frame = *frame_word;
+    // Forced transitions use the same frame side as ordinary transitions
     first_frame = (sint32)old_frame >= 0;
     if ((flags & 0x2000000) != 0)
     {
-        mask = r_u16(segment_offset + 14);
+        mask = node.state_flags;
         if ((mask & (((flags >> 6) & 0x10) | 8)) != 0)
-            selected = r_u32(segment_offset + 20);
+            selected = (this->adjacent[1]);
         else
-            selected = r_u32(segment_offset + 16);
+            selected = (this->adjacent[0]);
         if (selected != 0)
         {
-            if ((first_frame & 0xFF) != 0)
-                w_u32(frame_offset, 0);
+            if (first_frame != 0)
+                *frame_word = 0;
             else
             {
-                definition = r_u32(selected + 36);
-                value = (uint32)r_s16(definition + 26) - 1;
-                w_u32(frame_offset, value);
+                definition = (const PathDefinition *)((const PathDefinition *)((selected->definition)));
+                *frame_word = (uint32)(sint16)definition->positions.metadata6 - 1;
             }
         }
     }
     else
     {
-        current = segment_offset;
+        current = this;
         if (first_frame == 0)
         {
-            if ((r_u16(segment_offset + 14) & 8) != 0)
-                current = r_u32(segment_offset + 16);
+            if ((node.state_flags & 8) != 0)
+            {
+                current = (this->adjacent[0]);
+                current = (const ScenePath *)(current);
+            }
             direction ^= 0x10;
         }
-        mask = r_u16(current + 14);
+        mask = current->node.state_flags;
         if ((mask & (direction | 8)) != 0)
-            selected = r_u32(current + 20);
+            selected = (current->adjacent[1]);
         else
-            selected = r_u32(current + 16);
+            selected = (current->adjacent[0]);
         if (selected != 0)
         {
             if (first_frame != 0)
-                w_u32(frame_offset, 0);
+                *frame_word = 0;
             else
             {
-                if ((r_u16(selected + 14) & 8) != 0)
-                    selected = r_u32(selected + 16);
-                definition = r_u32(selected + 36);
-                value = (uint32)r_s16(definition + 26) - 1;
-                w_u32(frame_offset, value);
+                if ((selected->node.state_flags & 8) != 0)
+                {
+                    selected = (selected->adjacent[0]);
+                }
+                selected_view = (const ScenePath *)(selected);
+                definition = (const PathDefinition *)((const PathDefinition *)((selected_view->definition)));
+                *frame_word = (uint32)(sint16)definition->positions.metadata6 - 1;
             }
         }
     }
     if (selected != 0)
     {
-        definition = r_u32(selected + 36);
-        if ((r_u32(definition + 16) & 0x10000) != 0)
+        definition = (const PathDefinition *)((const PathDefinition *)((selected->definition)));
+        if ((definition->flags & 0x10000) != 0)
         {
-            w_u32(frame_offset, old_frame);
+            *frame_word = old_frame;
             selected = 0;
         }
     }
     return selected;
 }
 
-uint32 ApplyPathVelocityChange(uint32 object_offset, uint32 definition_offset)
+void AnimatedObject::ApplyPathVelocityChange(const PathDefinition *definition)
 {
+    const PathTransform *captured_path_transform;
     FUNCTION_MARKER(0x80046228, "SLUS_005.78");
-    uint32 result, parent, state, matrix, x, y, z, value, speed, angle, flags, secondary;
+    const PathDefinition *previous_definition;
+    const PathTransform *transform;
+    const ScenePath *parent;
+    uint32 x, y, z, value, speed, angle, flags, secondary;
+    const PathTransform *matrix_transform;
     sint32 kind;
 
-    result = r_u32(object_offset + 28) & 0x2000;
-    if (result != 0)
+    if ((this->flags & 0x2000) != 0)
     {
-        return result;
+        return;
     }
-    kind = r_s8(object_offset + 126);
-    result = 3;
+    kind = (sint8)this->metadata126[0];
     parent = 0;
     if (kind == 1)
     {
-        result = 33;
-        if (r_s8(object_offset + 125) != 33)
+        if (this->behavior != 33)
         {
-            state = r_u32(0x8008A114);
-            result = state;
-            parent = r_u32(state + 136);
+            parent = camera_motion.path;
         }
         else
-            parent = r_u32(object_offset + 112);
+            parent = (this->scene_path);
     }
     else if (kind == 3)
     {
-        result = 0xFFFFFFFF;
-        if (r_s8(object_offset + 120) == -1)
-            parent = r_u32(object_offset + 112);
+        if (this->animation_binding.tracks[0] == -1)
+            parent = (this->scene_path);
     }
     if (parent == 0)
     {
-        return result;
+        return;
     }
-    result = r_u32(parent + 36);
-    matrix = r_u32(result + 40);
-    if (matrix == 0)
+    previous_definition = (parent->definition);
+    matrix_transform = ((captured_path_transform = (previous_definition->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+    if (matrix_transform == 0)
     {
-        return result;
+        return;
     }
-    x = r_u32(matrix + 32);
-    y = r_u32(matrix + 36);
-    z = r_u32(matrix + 40);
-    if (definition_offset != 0)
+    transform = ((const PathTransform *)(matrix_transform));
+    x = transform->displacement[0];
+    y = transform->displacement[1];
+    z = transform->displacement[2];
+    if (definition != 0)
     {
-        matrix = r_u32(definition_offset + 40);
-        if (matrix != 0)
+        matrix_transform = ((captured_path_transform = (definition->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+        if (matrix_transform != 0)
         {
-            x -= r_u32(matrix + 32);
-            matrix = r_u32(definition_offset + 40);
-            y -= r_u32(matrix + 36);
-            matrix = r_u32(definition_offset + 40);
-            z -= r_u32(matrix + 40);
+            transform = ((const PathTransform *)(matrix_transform));
+            x -= transform->displacement[0];
+            matrix_transform = ((captured_path_transform = (definition->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+            transform = ((const PathTransform *)(matrix_transform));
+            y -= transform->displacement[1];
+            matrix_transform = ((captured_path_transform = (definition->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+            transform = ((const PathTransform *)(matrix_transform));
+            z -= transform->displacement[2];
         }
     }
-    w_u32(object_offset + 92, r_u32(object_offset + 92) + x);
-    w_u32(object_offset + 96, r_u32(object_offset + 96) + y);
-    w_u32(object_offset + 100, r_u32(object_offset + 100) + z);
-    if (r_s8(object_offset + 126) != 1)
+    this->velocity[0] = this->velocity[0] + x;
+    this->velocity[1] = this->velocity[1] + y;
+    this->velocity[2] = this->velocity[2] + z;
+    if ((sint8)this->metadata126[0] != 1)
     {
-        return 1;
+        return;
     }
     if (x == 0 && y == 0 && z == 0)
     {
-        return 0;
+        return;
     }
     if (y != 0)
     {
@@ -1338,7 +1154,7 @@ uint32 ApplyPathVelocityChange(uint32 object_offset, uint32 definition_offset)
         value += y;
         y = 0;
         character_controller.motion.vertical_speed = value;
-        w_u32(object_offset + 28, r_u32(object_offset + 28) | 0x400);
+        this->flags = this->flags | 0x400;
     }
     value = (uint32)((sint32)x >> 6);
     value *= value;
@@ -1348,21 +1164,21 @@ uint32 ApplyPathVelocityChange(uint32 object_offset, uint32 definition_offset)
     value += speed * speed;
     if ((sint32)value < 0)
     {
-        speed = p2_sdk_8007e794(value >> 2) << 1;
+        speed = SquareRoot12((sint32)(value >> 2)) << 1;
     }
     else
     {
-        speed = p2_sdk_8007e794(value);
+        speed = SquareRoot12((sint32)value);
     }
 
     if (speed != 0)
     {
         angle = Atan2Angle((sint32)z, (sint32)x);
-        value = (uint32)(sint32)r_s16(object_offset + 150);
+        value = (uint32)(sint32)this->target_yaw;
         angle = (uint32)(sint32)(sint16)angle - value - 1024;
         if ((angle & 0xFFF) < 2048)
         {
-            if (speed != 0 && (r_u32(object_offset + 28) & 0x400) == 0)
+            if (speed != 0 && (this->flags & 0x400) == 0)
                 speed += 4096;
         }
         else
@@ -1374,209 +1190,217 @@ uint32 ApplyPathVelocityChange(uint32 object_offset, uint32 definition_offset)
     character_controller.motion.horizontal_speed = value + speed;
     character_controller.flags = flags & 0xFF7FFFFF;
     character_controller.secondary_flags = secondary & 0xFFFFFF7F;
-    return 0xFFFFFF7F;
+    return;
 }
 
-uint32 ChangeActorPath(uint32 object_offset, uint32 path_offset, uint32 position_offset, uint32 floor_offset)
+uint32 AnimatedObject::ChangeActorPath(const ScenePath *path, const uint32 *position, uint32 *floor)
 {
+    const PathTransform *captured_path_transform;
+    const ScenePath *adjacent_path;
     FUNCTION_MARKER(0x8003AF18, "SLUS_005.78");
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 local, frame_offset, query_floor, input, inverse, transpose, visited;
+    const MATRIX *matrix;
+    const PathDefinition *parent;
+    const ScenePath *path_view;
+    const AnimatedObject *player;
+    uint32 frame_word;
+    PathVector query_floor, input, inverse;
+    MATRIX transpose = {0};
+    const ScenePath *visited[6];
     /* No candidate exists until this function selects a path */
-    uint32 candidate = 0, visited_path;
-    uint32 initial_path = path_offset, direction, flags, definition, parent, matrix;
+    const ScenePath *candidate = 0, *visited_path;
+    const ScenePath *initial_path = path;
+    uint32 direction, flags;
+    const PathDefinition *definition;
+    const PathTransform *matrix_transform;
     uint32 kind_one_probe = 0, restrict_paths = 0, allow_special = 0, allow_link = 0;
     uint32 fallback_used = 0, result = 0, scene, x, y, z, value, index, repeated;
     sint32 kind, frame, probe_frame, retries = 2, previous_retries, gap;
     sint32 probe;
-    p2_guest_stack_pointer -= 112;
-    local = p2_guest_stack_pointer;
-    frame_offset = local;
-    query_floor = local + 16;
-    input = local + 32;
-    inverse = local + 48;
-    transpose = local + 64;
-    visited = local + 88;
-    kind = r_s8(object_offset + 126);
+    xport_store_le16((uint8 *)&transpose + 18, 0);
+    kind = (sint8)this->metadata126[0];
     if (kind == 1)
         kind_one_probe = (character_controller.flags & 0x60000) != 0;
-    else if (r_s8(object_offset + 124) == 2 && (r_u32(object_offset + 116) == 19 || r_u32(0x8008A498) != 0))
+    else if (this->movement_mode == 2 && (this->state == 19 || path_routing.flags != 0))
     {
-        parent = r_u32(p2_func_800536f0(0) + 132);
-        value = r_u32(parent + 16) & 0x80000;
+        player = FindPlayerObject(0);
+        parent = (const PathDefinition *)((const PathDefinition *)((player->path_definition)));
+        value = parent->flags & 0x80000;
         restrict_paths = 1;
         if (value != 0)
             allow_special = 1;
-        if ((r_u32(r_u32(object_offset + 132) + 16) & 0x10000) != 0)
+        if ((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x10000) != 0)
         {
             allow_link = 1;
         }
     }
-    direction = r_u32(object_offset + 28) & 0x10;
-    if ((r_u32(object_offset + 228) & 0x26) != 0)
+    direction = this->flags & 0x10;
+    if ((this->path_flags & 0x26) != 0)
     {
-        probe = CanChangePath(object_offset, position_offset, direction);
+        probe = CanChangePath(position, direction);
         if (((uint32)probe & 0xFF) == 0)
             goto done;
     }
     for (index = 0; index < 6; ++index)
-        w_u32(visited + index * 4, 0);
+        visited[index] = 0;
 select_path:
+    path_view = (const ScenePath *)(path);
     frame = -1;
-    if ((r_u32(object_offset + 28) & 0x40) != 0)
-        frame = r_s16(object_offset + 136);
-    w_u32(frame_offset, (uint32)frame);
-    kind = r_s8(object_offset + 126);
-    if (kind == 1 || (kind == 3 && r_s8(object_offset + 120) == -1))
+    if ((this->flags & 0x40) != 0)
+        frame = this->path_frame;
+    frame_word = frame;
+    kind = (sint8)this->metadata126[0];
+    if (kind == 1 || (kind == 3 && this->animation_binding.tracks[0] == -1))
     {
-        if ((r_u32(r_u32(path_offset + 36) + 16) & 0x50) >= 0x41 && ((r_u32(object_offset + 28) & 0x4800) == 0 || retries < 2))
+        if ((((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags & 0x50) >= 0x41 && ((this->flags & 0x4800) == 0 || retries < 2))
         {
-            value = r_u32(path_offset + 28);
-            if (value != 0)
+            candidate = path_view->fallback;
+            if (candidate != 0)
             {
-                candidate = value;
-                if ((r_u16(path_offset + 14) & (direction | 8)) == 0 && (r_u16(value + 14) & 8) != 0)
-                    candidate = r_u32(value + 16);
+                if ((path_view->node.state_flags & (direction | 8)) == 0 && (candidate->node.state_flags & 8) != 0)
+                {
+                    adjacent_path = (candidate->adjacent[0]);
+                    candidate = adjacent_path;
+                }
                 if (candidate != 0)
                     goto check_candidate;
             }
         }
-        candidate = SelectAdjacentPath(path_offset, frame_offset, direction, r_u32(object_offset + 228));
+        candidate = path_view->SelectAdjacent(&frame_word, direction, this->path_flags);
         if (candidate != 0)
             goto check_candidate;
     }
     if (candidate == 0)
         goto fallback;
-    if (r_s8(object_offset + 125) != 6 || r_u32(object_offset + 116) != 0 || r_u32(0x8008A498) == 0 || fallback_used != 0)
+    if (this->behavior != 6 || this->state != 0 || path_routing.flags == 0 || fallback_used != 0)
         goto done;
-    if ((r_u32(r_u32(object_offset + 132) + 16) & 0x10000) == 0)
+    if ((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x10000) == 0)
         goto done;
-    value = r_u32(r_u32(r_u32(0x8008A114) + 136) + 20);
+    adjacent_path = (camera_motion.path->adjacent[1]);
     fallback_used = 1;
-    if (value == 0)
+    if (adjacent_path == 0)
         goto done;
-    candidate = value;
+    candidate = adjacent_path;
     goto check_candidate;
 fallback:
     if (fallback_used == 1)
         goto done;
     fallback_used = 1;
-    candidate = p2_func_8003bc08(object_offset, position_offset, floor_offset, direction);
+    candidate = FindFallbackPath(position, direction);
     if (candidate == 0)
         goto done;
 check_candidate:
-    flags = r_u32(object_offset + 228);
-    w_u32(object_offset + 228, flags & 0xFDFFFFFF);
-    if ((flags & 0x20) != 0 && r_u32(r_u32(0x8008A114) + 136) == candidate)
+    flags = this->path_flags;
+    this->path_flags = flags & 0xFDFFFFFF;
+    if ((flags & 0x20) != 0 && camera_motion.path == candidate)
         goto fallback;
     if (candidate != initial_path && candidate != 0)
     {
         repeated = 0;
         for (index = 0; index < 6; ++index)
         {
-            visited_path = r_u32(visited + index * 4);
+            visited_path = visited[index];
             if (candidate == visited_path)
             {
                 repeated = 1;
                 break;
             }
         }
-        if (repeated != 0 && r_s8(0x8008A170) != 0)
+        if (repeated != 0 && path_routing.reject_repeated != 0)
             goto fallback;
         for (index = 0; index < 6; ++index)
         {
-            visited_path = r_u32(visited + index * 4);
+            visited_path = visited[index];
             if (visited_path == 0)
             {
-                w_u32(visited + index * 4, candidate);
+                visited[index] = candidate;
                 break;
             }
         }
     }
-    flags = r_u32(r_u32(path_offset + 36) + 16);
+    flags = ((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags;
     if ((flags & 0x50) == 0 && retries >= 2)
         goto accept_path;
-    if ((r_u32(object_offset + 28) & 0x6000) == 0x4000)
+    if ((this->flags & 0x6000) == 0x4000)
     {
-        probe = ProjectPathFrame(r_u32(candidate + 36), r_s32(frame_offset), position_offset, query_floor, direction, 4096);
-        w_u32(frame_offset, (uint32)probe);
+        probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame((sint32)frame_word, position, query_floor.words, direction, 4096);
+        frame_word = probe;
         if (probe < 0)
             goto done;
         goto check_floor;
     }
-    if (((flags & 0x40) == 0 || candidate == path_offset) && retries == 2)
+    if (((flags & 0x40) == 0 || candidate == path) && retries == 2)
     {
-        probe = SamplePathPosition(candidate, r_s32(frame_offset), query_floor, direction);
+        probe = candidate->SamplePosition((sint32)frame_word, query_floor.words, direction);
         goto floor_ready;
     }
-    if ((r_u32(object_offset + 28) & 0x2000) == 0 || (r_u32(object_offset + 228) & 0x40000) != 0)
+    if ((this->flags & 0x2000) == 0 || (this->path_flags & 0x40000) != 0)
     {
-        probe = FindPathHeightFrame(r_u32(candidate + 36), position_offset, direction, -40960);
-        w_u32(frame_offset, (uint32)probe);
+        probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->FindHeightFrame(position, direction, -40960);
+        frame_word = probe;
     }
-    if ((r_u32(object_offset + 228) & 0x24) != 0 && r_s32(frame_offset) == -1)
+    if ((this->path_flags & 0x24) != 0 && (sint32)frame_word == -1)
     {
-        probe = FindPathHeightFrame(r_u32(candidate + 36), position_offset, direction, -40960);
+        probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->FindHeightFrame(position, direction, -40960);
         if (probe != -1)
         {
-            probe = ProjectPathFrame(r_u32(candidate + 36), probe, position_offset, query_floor, direction, 8192);
-            w_u32(frame_offset, (uint32)probe);
+            probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame(probe, position, query_floor.words, direction, 8192);
+            frame_word = probe;
         }
     }
-    if (kind_one_probe != 0 && r_s32(frame_offset) == -1)
+    if (kind_one_probe != 0 && (sint32)frame_word == -1)
     {
-        probe = FindPathHeightFrame(r_u32(candidate + 36), position_offset, direction, -40960);
+        probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->FindHeightFrame(position, direction, -40960);
         if (probe != -1)
         {
-            probe = ProjectPathFrame(r_u32(candidate + 36), probe, position_offset, query_floor, direction, 20480);
-            w_u32(frame_offset, (uint32)probe);
+            probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame(probe, position, query_floor.words, direction, 20480);
+            frame_word = probe;
         }
     }
-    frame = r_s32(frame_offset);
+    frame = (sint32)frame_word;
     if (frame < 0)
         probe_frame = -1;
     else
     {
-        probe = ProjectPathFrame(r_u32(candidate + 36), frame, position_offset, query_floor, direction, 4096);
+        probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame(frame, position, query_floor.words, direction, 4096);
         probe_frame = probe;
-        if ((r_u32(object_offset + 228) & 0x24) != 0 && probe_frame == -1)
+        if ((this->path_flags & 0x24) != 0 && probe_frame == -1)
         {
-            probe = FindPathHeightFrame(r_u32(candidate + 36), position_offset, direction, -40960);
+            probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->FindHeightFrame(position, direction, -40960);
             if (probe != -1)
             {
-                probe = ProjectPathFrame(r_u32(candidate + 36), probe, position_offset, query_floor, direction, 8192);
+                probe = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame(probe, position, query_floor.words, direction, 8192);
                 probe_frame = probe;
             }
         }
-        if (probe_frame >= 0 && (r_u32(query_floor) - r_u32(position_offset) + 24576 > 0xC000 || r_u32(query_floor + 8) - r_u32(position_offset + 8) + 24576 > 0xC000))
+        if (probe_frame >= 0 && (query_floor.words[0] - position[0] + 24576 > 0xC000 || query_floor.words[2] - position[2] + 24576 > 0xC000))
             probe_frame = -1;
     }
-    w_u32(frame_offset, (uint32)probe_frame);
+    frame_word = probe_frame;
 floor_ready:
-    if (r_s32(frame_offset) < 0)
+    if ((sint32)frame_word < 0)
         goto retry_path;
 check_floor:
-    if ((r_u32(r_u32(candidate + 36) + 16) & 0x10000) != 0)
+    if ((((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->flags & 0x10000) != 0)
         goto retry_path;
-    gap = (sint32)(r_u32(position_offset + 4) - r_u32(query_floor + 4));
-    if (gap < -1365 && ((r_u32(r_u32(path_offset + 36) + 16) & 0x40) == 0 || gap < -4096))
+    gap = (sint32)(position[1] - query_floor.words[1]);
+    if (gap < -1365 && ((((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags & 0x40) == 0 || gap < -4096))
         goto retry_path;
-    x = r_u32(query_floor);
-    y = r_u32(query_floor + 4);
-    z = r_u32(query_floor + 8);
-    w_u32(floor_offset, x);
-    w_u32(floor_offset + 4, y);
-    w_u32(floor_offset + 8, z);
+    x = query_floor.words[0];
+    y = query_floor.words[1];
+    z = query_floor.words[2];
+    floor[0] = x;
+    floor[1] = y;
+    floor[2] = z;
     goto accept_path;
 retry_path:
     if (retries != 0)
     {
-        flags = r_u32(object_offset + 28);
+        flags = this->flags;
         if ((flags & 0x4000) == 0)
         {
             previous_retries = retries--;
-            if (previous_retries != 2 || (r_u32(r_u32(path_offset + 36) + 16) & 0x10) == 0 || (flags & 0x800) == 0 || r_u32(path_offset + 28) == 0)
-                path_offset = candidate;
+            if (previous_retries != 2 || (((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags & 0x10) == 0 || (flags & 0x800) == 0 || path_view->fallback == 0)
+                path = candidate;
             goto select_path;
         }
     }
@@ -1584,238 +1408,231 @@ retry_path:
         goto fallback;
     goto done;
 accept_path:
-    if (candidate == initial_path && ((r_u32(object_offset + 28) & 0x800) == 0 || retries != 2))
+    if (candidate == initial_path && ((this->flags & 0x800) == 0 || retries != 2))
         goto done;
-    flags = r_u32(r_u32(candidate + 36) + 16);
+    flags = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->flags;
     if ((flags & 0x10000) != 0)
         goto done;
     if (restrict_paths != 0)
     {
         if ((flags & 0x80000) != 0 && allow_special == 0)
             goto done;
-        if (allow_link == 0 && (r_u32(r_u32(candidate + 36) + 16) & 0x10) != 0)
+        if (allow_link == 0 && (((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->flags & 0x10) != 0)
             goto done;
     }
-    flags = r_u32(object_offset + 28);
-    kind = r_s8(object_offset + 126);
-    w_u32(object_offset + 28, flags & 0xFFFF9FFF);
-    if (kind == 1 && r_s8(object_offset + 125) != 33)
+    flags = this->flags;
+    kind = (sint8)this->metadata126[0];
+    this->flags = flags & 0xFFFF9FFF;
+    if (kind == 1 && this->behavior != 33)
     {
-        scene = r_u32(0x8008A114);
-        x = r_u32(position_offset);
-        y = r_u32(position_offset + 4);
-        z = r_u32(position_offset + 8);
-        w_u32(scene + 16, x);
-        w_u32(scene + 20, y);
-        w_u32(scene + 24, z);
-        p2_func_80046510(object_offset, candidate, r_s32(frame_offset));
+        scene = OriginalDefaults::SceneContextIdentity;
+        x = position[0];
+        y = position[1];
+        z = position[2];
+        camera_motion.focus_position[0] = x;
+        camera_motion.focus_position[1] = y;
+        camera_motion.focus_position[2] = z;
+        UpdateObjectScenePath(candidate, (sint32)frame_word);
     }
     else
     {
         if (kind != 1)
-            ApplyPathVelocityChange(object_offset, r_u32(candidate + 36));
-        w_u32(object_offset + 112, candidate);
+            ApplyPathVelocityChange((candidate->definition));
+        this->scene_path = candidate;
     }
-    w_u16(object_offset + 136, r_u32(frame_offset));
-    parent = r_u32(object_offset + 132);
-    if (parent != 0 && r_u32(parent + 40) != 0)
+    this->path_frame = (sint16)(frame_word);
+    parent = (this->path_definition);
+    if (parent != 0 && (parent->transform) != 0)
     {
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(input, x);
-        w_u32(input + 4, y);
-        w_u32(input + 8, z);
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        input.words[0] = x;
+        input.words[1] = y;
+        input.words[2] = z;
         PushMatrix();
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        x = r_u32(matrix);
-        y = r_u32(matrix + 4);
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        x = xport_load_le32((const uint8 *)matrix);
+        y = xport_load_le32((const uint8 *)matrix + 4);
         xport_gte_write_control(0, x);
         xport_gte_write_control(1, y);
-        x = r_u32(matrix + 8);
-        y = r_u32(matrix + 12);
-        z = r_u32(matrix + 16);
+        x = xport_load_le32((const uint8 *)matrix + 8);
+        y = xport_load_le32((const uint8 *)matrix + 12);
+        z = xport_load_le32((const uint8 *)matrix + 16);
         xport_gte_write_control(2, x);
         xport_gte_write_control(3, y);
         xport_gte_write_control(4, z);
-        p2_sdk_8007ec64(input, object_offset + 16);
+        ApplyRotMatrixLV(&input.vector, (VECTOR *)this->position);
         PopMatrix();
-        parent = r_u32(object_offset + 132);
-        matrix = r_u32(parent + 40);
-        x = r_u32(object_offset + 16);
-        value = r_u32(matrix + 20);
-        parent = r_u32(object_offset + 132);
-        w_u32(object_offset + 16, x + value);
-        matrix = r_u32(parent + 40);
-        y = r_u32(object_offset + 20);
-        value = r_u32(matrix + 24);
-        parent = r_u32(object_offset + 132);
-        w_u32(object_offset + 20, y + value);
-        matrix = r_u32(parent + 40);
-        z = r_u32(object_offset + 24);
-        value = r_u32(matrix + 28);
-        w_u32(object_offset + 24, z + value);
+        parent = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+        matrix = (const MATRIX *)((parent->transform) != 0 ? &(parent->transform)->matrix : (MATRIX *)0);
+        x = this->position[0];
+        value = matrix->t[0];
+        parent = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+        this->position[0] = x + value;
+        matrix = (const MATRIX *)((parent->transform) != 0 ? &(parent->transform)->matrix : (MATRIX *)0);
+        y = this->position[1];
+        value = matrix->t[1];
+        parent = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+        this->position[1] = y + value;
+        matrix = (const MATRIX *)((parent->transform) != 0 ? &(parent->transform)->matrix : (MATRIX *)0);
+        z = this->position[2];
+        value = matrix->t[2];
+        this->position[2] = z + value;
     }
     else
     {
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(object_offset + 16, x);
-        w_u32(object_offset + 20, y);
-        w_u32(object_offset + 24, z);
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        this->position[0] = x;
+        this->position[1] = y;
+        this->position[2] = z;
     }
-    definition = r_u32(candidate + 36);
-    w_u32(object_offset + 132, definition);
-    if (definition != 0 && (matrix = r_u32(definition + 40)) != 0)
+    definition = (candidate->definition);
+    this->path_definition = definition;
+    if (definition != 0 && (matrix_transform = ((captured_path_transform = (((const PathDefinition *)((const PathDefinition *)(definition)))->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0)) != 0)
     {
-        x = r_u32(object_offset + 16);
-        w_u32(inverse, x - r_u32(matrix + 20));
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        y = r_u32(object_offset + 20);
-        w_u32(inverse + 4, y - r_u32(matrix + 24));
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        z = r_u32(object_offset + 24);
-        w_u32(inverse + 8, z - r_u32(matrix + 28));
+        matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+        x = this->position[0];
+        inverse.words[0] = x - matrix->t[0];
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        y = this->position[1];
+        inverse.words[1] = y - matrix->t[1];
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        z = this->position[2];
+        inverse.words[2] = z - matrix->t[2];
         for (index = 0; index < 9; ++index)
         {
-            matrix = r_u32(r_u32(object_offset + 132) + 40);
-            value = r_u16(matrix + (index % 3) * 6 + (index / 3) * 2);
-            w_u16(transpose + index * 2, value);
+            matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+            value = (uint16)matrix->m[index % 3][index / 3];
+            transpose.m[index / 3][index % 3] = value;
         }
         PushMatrix();
-        x = r_u32(transpose);
-        y = r_u32(transpose + 4);
+        x = xport_load_le32((const uint8 *)&transpose + 0);
+        y = xport_load_le32((const uint8 *)&transpose + 4);
         xport_gte_write_control(0, x);
         xport_gte_write_control(1, y);
-        x = r_u32(transpose + 8);
-        y = r_u32(transpose + 12);
-        z = r_u32(transpose + 16);
+        x = xport_load_le32((const uint8 *)&transpose + 8);
+        y = xport_load_le32((const uint8 *)&transpose + 12);
+        z = xport_load_le32((const uint8 *)&transpose + 16);
         xport_gte_write_control(2, x);
         xport_gte_write_control(3, y);
         xport_gte_write_control(4, z);
-        p2_sdk_8007ec64(inverse, object_offset + 16);
+        ApplyRotMatrixLV(&inverse.vector, (VECTOR *)this->position);
         PopMatrix();
     }
     else
     {
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(object_offset + 16, x);
-        w_u32(object_offset + 20, y);
-        w_u32(object_offset + 24, z);
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        this->position[0] = x;
+        this->position[1] = y;
+        this->position[2] = z;
     }
     result = 1;
 done:
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-uint32 SelectScenePath(uint32 path_offset)
+uint32 SelectScenePath(const ScenePath *path)
 {
     FUNCTION_MARKER(0x80024844, "SLUS_005.78");
-    uint32 context = r_u32(0x8008A114);
+    uint32 context = OriginalDefaults::SceneContextIdentity;
 
-    if (r_s16(context + 304) != 4096)
-        p2_func_8002417c(0xE9555);
-    context = r_u32(0x8008A114);
-    w_u32(context + 136, path_offset);
+    if (camera_projection.view_normals[0].vz != 4096)
+        SetCameraProjection(0xE9555);
+    context = OriginalDefaults::SceneContextIdentity;
+    camera_motion.path = path;
     return context;
 }
 
-uint32 ProjectPathOffset(uint32 path_offset, sint32 frame, uint32 destination_offset, uint32 direction)
+uint32 ScenePath::ProjectOffset(sint32 frame, uint32 *destination, uint32 direction) const
 {
     FUNCTION_MARKER(0x800451CC, "SLUS_005.78");
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 point, previous, following, x, y, z, numerator, denominator, ratio, scale, result, i;
+    PathVector point, previous, following;
+    uint32 x, y, z, numerator, denominator, ratio, scale, result, i;
     sint32 selected, count, gap, reciprocal, lift;
-    p2_guest_stack_pointer -= 0x48;
-    point = p2_guest_stack_pointer + 0x18;
-    previous = p2_guest_stack_pointer + 0x28;
-    following = p2_guest_stack_pointer + 0x38;
-    selected = ProjectPathFrame(r_u32(path_offset + 36), frame, r_u32(0x8008A114) + 16, point, direction, 4096);
+    selected = ((const PathDefinition *)((const PathDefinition *)((this->definition))))->ProjectFrame(frame, camera_motion.focus_position, point.words, direction, 4096);
     if (selected < 0)
         selected = frame;
-    gap = (sint32)(r_u32(r_u32(0x8008A114) + 20) - r_u32(point + 4));
+    gap = (sint32)(camera_motion.focus_position[1] - point.words[1]);
     if (selected <= 0)
     {
-        SamplePathPosition(path_offset, 0, point, direction);
+        SamplePosition(0, point.words, direction);
 
-        SamplePathOffset(path_offset, 0, destination_offset, direction);
-
+        SampleOffset(0, destination, direction);
     }
     else
     {
-        count = r_s16(r_u32(path_offset + 36) + 26);
+        count = (sint16)((const PathDefinition *)((const PathDefinition *)((this->definition))))->positions.metadata6;
         if (selected < count)
         {
-            SamplePathPosition(path_offset, (sint32)((uint32)selected - 1), previous, direction);
+            SamplePosition((sint32)((uint32)selected - 1), previous.words, direction);
 
-            x = r_u32(point) - r_u32(previous);
-            y = r_u32(point + 4) - r_u32(previous + 4);
-            z = r_u32(point + 8) - r_u32(previous + 8);
-            w_u32(point, x);
-            w_u32(point + 4, y);
-            w_u32(point + 8, z);
+            x = point.words[0] - previous.words[0];
+            y = point.words[1] - previous.words[1];
+            z = point.words[2] - previous.words[2];
+            point.words[0] = x;
+            point.words[1] = y;
+            point.words[2] = z;
             x = (uint32)((sint32)x >> 6);
             y = (uint32)((sint32)y >> 6);
             z = (uint32)((sint32)z >> 6);
 
             numerator = x * x + y * y + z * z;
-            SamplePathOffset(path_offset, (sint32)((uint32)selected - 1), destination_offset, direction);
+            SampleOffset((sint32)((uint32)selected - 1), destination, direction);
 
-            SamplePathPosition(path_offset, selected, following, direction);
+            SamplePosition(selected, following.words, direction);
 
-            x = r_u32(following) - r_u32(previous);
-            y = r_u32(following + 4) - r_u32(previous + 4);
-            z = r_u32(following + 8) - r_u32(previous + 8);
-            w_u32(following, x);
-            w_u32(following + 4, y);
-            w_u32(following + 8, z);
+            x = following.words[0] - previous.words[0];
+            y = following.words[1] - previous.words[1];
+            z = following.words[2] - previous.words[2];
+            following.words[0] = x;
+            following.words[1] = y;
+            following.words[2] = z;
             x = (uint32)((sint32)x >> 6);
             y = (uint32)((sint32)y >> 6);
             z = (uint32)((sint32)z >> 6);
             denominator = x * x + y * y + z * z;
             if (denominator == 0)
             {
-                SamplePathOffset(path_offset, selected, destination_offset, direction);
-
+                SampleOffset(selected, destination, direction);
             }
             else
             {
                 reciprocal = 0x40000000 / (sint32)denominator;
                 ratio = (uint32)(((sint64)(sint32)numerator * reciprocal) >> 18);
-                w_u32(0x1F80030C, ratio);
-                SamplePathOffset(path_offset, selected, point, direction);
+                fixed_math_result = ratio;
+                SampleOffset(selected, point.words, direction);
 
                 for (i = 0; i < 3; ++i)
-                    w_u32(point + i * 4, r_u32(point + i * 4) - r_u32(destination_offset + i * 4));
-                ratio = r_u32(0x1F80030C);
+                    point.words[i] = point.words[i] - destination[i];
+                ratio = fixed_math_result;
                 if ((sint32)ratio >= 0)
                 {
-                    scale = p2_sdk_8007e794(ratio);
+                    scale = SquareRoot12((sint32)ratio);
                 }
                 else
                 {
-                    scale = p2_sdk_8007e794(ratio >> 2) << 1;
+                    scale = SquareRoot12((sint32)(ratio >> 2)) << 1;
                 }
 
                 for (i = 0; i < 3; ++i)
-                    w_u32(point + i * 4, (uint32)(((sint64)r_s32(point + i * 4) * (sint32)scale) >> 12));
+                    point.words[i] = (uint32)(((sint64)(sint32)point.words[i] * (sint32)scale) >> 12);
                 for (i = 0; i < 3; ++i)
-                    w_u32(destination_offset + i * 4, r_u32(destination_offset + i * 4) + r_u32(point + i * 4));
+                    destination[i] = destination[i] + point.words[i];
             }
         }
         else
         {
-            SamplePathPosition(path_offset, count - 1, point, direction);
+            SamplePosition(count - 1, point.words, direction);
 
-            SamplePathOffset(path_offset, r_s16(r_u32(path_offset + 36) + 26) - 1, destination_offset, direction);
-
+            SampleOffset((sint16)((const PathDefinition *)((const PathDefinition *)((this->definition))))->positions.metadata6 - 1, destination, direction);
         }
     }
-    result = r_u16(path_offset + 14) & 1;
+    result = node.state_flags & 1;
     if (result != 0)
     {
         result = 5120;
@@ -1824,26 +1641,70 @@ uint32 ProjectPathOffset(uint32 path_offset, sint32 frame, uint32 destination_of
             lift = (sint32)(uint32)(((sint64)gap * 5120) >> 12);
             if ((sint32)((uint32)lift - (uint32)gap) > 61440)
                 lift = (sint32)((uint32)gap + 61440);
-            result = r_u32(destination_offset + 4) + (uint32)lift;
-            w_u32(destination_offset + 4, result);
+            result = destination[1] + (uint32)lift;
+            destination[1] = result;
         }
     }
-    p2_guest_stack_pointer = saved_stack;
     return result;
 }
 
-uint32 ReverseScenePath(uint32 object_offset, uint32 character_offset)
+void AnimatedObject::UpdateObjectScenePath(const ScenePath *path, sint32 frame)
 {
+    FUNCTION_MARKER(0x80046510, "SLUS_005.78");
+    const ScenePath *path_view, *previous;
+    uint32 direction;
+    uint32 same_definition;
+    const PathDefinition *definition;
+    sint32 previous_frame;
+    previous = camera_motion.path;
+    if (path != previous)
+    {
+        path_view = (const ScenePath *)(path);
+        direction = this->flags & 0x10;
+        path_view->ProjectOffset(frame, camera_motion.desired_position, direction);
+        previous = camera_motion.path;
+        definition = path_view->definition;
+        same_definition = definition == previous->definition;
+        if (same_definition != 0)
+            direction ^= 0x10;
+        else
+            ApplyPathVelocityChange(definition);
+        if ((camera_motion.smooth_ticks[0] | camera_motion.smooth_ticks[1] | camera_motion.smooth_ticks[2]) == 0)
+        {
+            previous = camera_motion.path;
+            if (previous == character_controller.path && (this->flags & 0x2000) == 0)
+            {
+                previous_frame = this->path_frame;
+                if (previous_frame >= 0)
+                    ((const ScenePath *)(previous))->ProjectOffset(previous_frame, camera_motion.position, direction);
+            }
+        }
+        SelectScenePath(path);
+    }
+    this->path_frame = (sint16)(frame);
+}
+
+uint32 AnimatedObject::ReverseScenePath()
+{
+    uint32 *support_speed;
     FUNCTION_MARKER(0x80046CBC, "SLUS_005.78");
-    uint32 state, path, result, flags, x, y, z, parent, matrix, frame, old_frame, heading;
-    uint32 saved_stack, local, delta, direction, previous, definition, value;
+    const MATRIX *matrix;
+    const PathDefinition *parent;
+    const ScenePath *path, *path_view, *previous;
+    uint32 state, result, flags, x, y, z, frame, old_frame, heading;
+    PathVector local, delta;
+    uint32 direction;
+    const PathDefinition *definition, *captured_parent, *previous_definition;
     sint32 signed_frame;
 
-    state = r_u32(0x8008A114);
-    path = r_u32(state + 136);
-    result = r_u16(path + 14) & 8;
+    state = OriginalDefaults::SceneContextIdentity;
+    path = camera_motion.path;
+    path_view = (const ScenePath *)(path);
+    result = path_view->node.state_flags & 8;
     if (result != 0)
-        path = r_u32(path + 16);
+    {
+        path = (path_view->adjacent[0]);
+    }
     if (path == 0)
     {
         return result;
@@ -1853,155 +1714,156 @@ uint32 ReverseScenePath(uint32 object_offset, uint32 character_offset)
     {
         return result;
     }
-    w_u32(object_offset + 28, r_u32(object_offset + 28) ^ 0x10);
-    x = r_u32(character_offset + 84);
+    this->flags = this->flags ^ 0x10;
+    support_speed = character_controller.support.speed;
+    x = support_speed[0];
     y = character_controller.motion.horizontal_speed;
-    w_u32(character_offset + 84, 0 - x);
+    support_speed[0] = 0 - x;
     character_controller.motion.horizontal_speed = 0 - y;
-    heading = r_u16(object_offset + 150);
-    parent = r_u32(object_offset + 132);
-    old_frame = r_u16(object_offset + 136);
-    w_u16(object_offset + 150, (heading + 2048) & 0xFFF);
-    frame = r_u16(parent + 26);
-    flags = r_u32(object_offset + 28);
+    heading = (uint16)this->target_yaw;
+    captured_parent = (this->path_definition);
+    parent = (const PathDefinition *)(captured_parent);
+    old_frame = (uint16)this->path_frame;
+    this->target_yaw = (sint16)((heading + 2048) & 0xFFF);
+    frame = parent->positions.metadata6;
+    flags = this->flags;
     frame -= old_frame;
-    saved_stack = p2_guest_stack_pointer;
-    p2_guest_stack_pointer -= 32;
-    local = p2_guest_stack_pointer;
-    delta = local + 16;
     if ((flags & 0x2000) != 0)
     {
         x = (uint32)character_controller.path_tangent.vx;
         y = (uint32)character_controller.path_tangent.vy;
         z = (uint32)character_controller.path_tangent.vz;
-        character_controller.path_tangent.vx =  0 - x;
-        character_controller.path_tangent.vy =  0 - y;
-        character_controller.path_tangent.vz =  0 - z;
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(state + 16, x);
-        w_u32(state + 20, y);
-        w_u32(state + 24, z);
+        character_controller.path_tangent.vx = 0 - x;
+        character_controller.path_tangent.vy = 0 - y;
+        character_controller.path_tangent.vz = 0 - z;
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        camera_motion.focus_position[0] = x;
+        camera_motion.focus_position[1] = y;
+        camera_motion.focus_position[2] = z;
     }
-    else if (parent != 0 && r_u32(parent + 40) != 0)
+    else if (captured_parent != 0 && (parent->transform) != 0)
     {
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(local, x);
-        w_u32(local + 4, y);
-        w_u32(local + 8, z);
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        local.words[0] = x;
+        local.words[1] = y;
+        local.words[2] = z;
         PushMatrix();
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        x = r_u32(matrix);
-        y = r_u32(matrix + 4);
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        x = xport_load_le32((const uint8 *)matrix);
+        y = xport_load_le32((const uint8 *)matrix + 4);
         xport_gte_write_control(0, x);
         xport_gte_write_control(1, y);
-        x = r_u32(matrix + 8);
-        y = r_u32(matrix + 12);
-        z = r_u32(matrix + 16);
+        x = xport_load_le32((const uint8 *)matrix + 8);
+        y = xport_load_le32((const uint8 *)matrix + 12);
+        z = xport_load_le32((const uint8 *)matrix + 16);
         xport_gte_write_control(2, x);
         xport_gte_write_control(3, y);
         xport_gte_write_control(4, z);
-        state = r_u32(0x8008A114);
-        p2_sdk_8007ec64(local, state + 16);
+        state = OriginalDefaults::SceneContextIdentity;
+        ApplyRotMatrixLV(&local.vector, (VECTOR *)camera_motion.focus_position);
         PopMatrix();
 
-        state = r_u32(0x8008A114);
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        x = r_u32(state + 16);
-        x += r_u32(matrix + 20);
-        w_u32(state + 16, x);
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        y = r_u32(state + 20);
-        y += r_u32(matrix + 24);
-        w_u32(state + 20, y);
-        matrix = r_u32(r_u32(object_offset + 132) + 40);
-        z = r_u32(state + 24);
-        z += r_u32(matrix + 28);
-        w_u32(state + 24, z);
+        state = OriginalDefaults::SceneContextIdentity;
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        x = camera_motion.focus_position[0];
+        x += matrix->t[0];
+        camera_motion.focus_position[0] = x;
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        y = camera_motion.focus_position[1];
+        y += matrix->t[1];
+        camera_motion.focus_position[1] = y;
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        z = camera_motion.focus_position[2];
+        z += matrix->t[2];
+        camera_motion.focus_position[2] = z;
     }
     else
     {
-        state = r_u32(0x8008A114);
-        x = r_u32(object_offset + 16);
-        y = r_u32(object_offset + 20);
-        z = r_u32(object_offset + 24);
-        w_u32(state + 16, x);
-        w_u32(state + 20, y);
-        w_u32(state + 24, z);
+        state = OriginalDefaults::SceneContextIdentity;
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        camera_motion.focus_position[0] = x;
+        camera_motion.focus_position[1] = y;
+        camera_motion.focus_position[2] = z;
     }
-    state = r_u32(0x8008A114);
-    previous = r_u32(state + 136);
+    state = OriginalDefaults::SceneContextIdentity;
+    previous = camera_motion.path;
     signed_frame = (sint16)frame;
     if (path != previous)
     {
-        direction = r_u32(object_offset + 28) & 0x10;
-        ProjectPathOffset(path, signed_frame, state + 28, direction);
-        state = r_u32(0x8008A114);
-        previous = r_u32(state + 136);
-        definition = r_u32(path + 36);
-        if (definition == r_u32(previous + 36))
+        direction = this->flags & 0x10;
+        path->ProjectOffset(signed_frame, (uint32 *)camera_motion.desired_position, direction);
+        state = OriginalDefaults::SceneContextIdentity;
+        previous = camera_motion.path;
+        definition = (path->definition);
+        previous_definition = (previous->definition);
+        if (definition == previous_definition)
             direction ^= 0x10;
         else
-            ApplyPathVelocityChange(object_offset, definition);
-        state = r_u32(0x8008A114);
-        if ((r_u32(state + 72) & 0xFFFFFF) == 0)
+            ApplyPathVelocityChange(definition);
+        state = OriginalDefaults::SceneContextIdentity;
+        if ((camera_motion.smooth_ticks[0] | camera_motion.smooth_ticks[1] | camera_motion.smooth_ticks[2]) == 0)
         {
-            previous = r_u32(state + 136);
-            value = r_u32(0x800AC018);
-            if (previous == value && (r_u32(object_offset + 28) & 0x2000) == 0)
+            previous = camera_motion.path;
+            if (previous == character_controller.path && (this->flags & 0x2000) == 0)
             {
-                signed_frame = r_s16(object_offset + 136);
+                signed_frame = this->path_frame;
                 if (signed_frame >= 0)
-                    ProjectPathOffset(previous, signed_frame, state + 4, direction);
+                    ((const ScenePath *)(previous))->ProjectOffset(signed_frame, (uint32 *)camera_motion.position, direction);
             }
         }
         SelectScenePath(path);
     }
-    w_u16(object_offset + 136, frame);
-    if (path != r_u32(character_offset + 688))
+    this->path_frame = (sint16)(frame);
+    if (path != character_controller.path)
     {
-        w_u32(character_offset + 688, path);
-        state = r_u32(0x8008A114);
-        x = r_u32(state + 28);
-        x -= r_u32(state + 4);
-        w_u32(delta, x);
-        y = r_u32(state + 32);
-        y -= r_u32(state + 8);
-        w_u32(delta + 4, y);
-        z = r_u32(state + 36);
-        z -= r_u32(state + 12);
-        w_u32(delta + 8, z);
-        p2_func_80024b3c(delta);
+        character_controller.path = path;
+        state = OriginalDefaults::SceneContextIdentity;
+        x = camera_motion.desired_position[0];
+        x -= camera_motion.position[0];
+        delta.words[0] = x;
+        y = camera_motion.desired_position[1];
+        y -= camera_motion.position[1];
+        delta.words[1] = y;
+        z = camera_motion.desired_position[2];
+        z -= camera_motion.position[2];
+        delta.words[2] = z;
+        SetCameraTransition(delta.words);
     }
-    result = r_u32(0x8008A114);
-    w_u16(result + 2, frame);
-    p2_guest_stack_pointer = saved_stack;
+    result = OriginalDefaults::SceneContextIdentity;
+    camera_motion.frame = frame;
     return result;
 }
 
-void SamplePathTangent(uint32 source_offset, VECTOR *destination, sint32 position)
+void PathDefinition::SampleTangent(VECTOR *destination, sint32 direction) const
 {
     FUNCTION_MARKER(0x80022EC4, "SLUS_005.78");
     VECTOR vector;
-    uint32 node, index, value, i;
+    const VectorAnimationKey *first_key, *second_key;
+    const MATRIX *matrix;
+    uint32 index, value, i;
     sint32 x, y, z;
     for (i = 0; i < 3; ++i)
     {
-        if (position != 0)
+        if (direction != 0)
         {
-            index = r_u8(source_offset + 20);
-            node = r_u32(source_offset + 32) + index * 40;
-            value = r_u32(node - 36 + i * 4);
-            value -= r_u32(node - 76 + i * 4);
+            index = positions.key_count;
+            first_key = (const VectorAnimationKey *)positions.keys + index - 1;
+            second_key = (const VectorAnimationKey *)positions.keys + index - 2;
+            value = first_key->position[i];
+            value -= second_key->position[i];
         }
         else
         {
-            node = r_u32(source_offset + 32);
-            value = r_u32(node + 4 + i * 4);
-            value -= r_u32(node + 44 + i * 4);
+            first_key = (const VectorAnimationKey *)positions.keys;
+            second_key = (const VectorAnimationKey *)positions.keys + 1;
+            value = first_key->position[i];
+            value -= second_key->position[i];
         }
         if (i == 0)
             vector.vx = value;
@@ -2020,12 +1882,12 @@ void SamplePathTangent(uint32 source_offset, VECTOR *destination, sint32 positio
         vector.vz = z;
     }
     VectorNormal(&vector, &vector);
-    if (r_u32(source_offset + 40) != 0)
+    if ((this->transform) != 0)
     {
         PushMatrix();
-        node = r_u32(source_offset + 40);
+        matrix = (const MATRIX *)((this->transform) != 0 ? &(this->transform)->matrix : (MATRIX *)0);
         for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, r_u32(node + i * 4));
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
         ApplyRotMatrixLV(&vector, destination);
         PopMatrix();
     }
@@ -2035,4 +1897,1631 @@ void SamplePathTangent(uint32 source_offset, VECTOR *destination, sint32 positio
         destination->vy = vector.vy;
         destination->vz = vector.vz;
     }
+}
+
+struct FallbackWorkspace
+{
+    PathVector scratch;
+    const ScenePath *chains[3][10];
+    PathVector probe;
+    const ScenePath *candidates[5];
+    const ScenePath *alternate[4];
+    PathVector displaced;
+    const ScenePath *ranked[10];
+    uint32 costs[10];
+    uint32 frames[10];
+    PathVector endpoint;
+};
+
+struct FallbackDefaults
+{
+    const ScenePath *chains[10];
+    const ScenePath *candidates[5];
+    const ScenePath *alternate[4];
+    const ScenePath *ranked[9];
+    uint32 costs[9];
+};
+
+static const FallbackDefaults fallback_defaults = {{0}, {0}, {0}, {0}, {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}};
+
+const ScenePath *AnimatedObject::FindFallbackPath(const uint32 *position, uint32 direction)
+{
+    const ScenePath *adjacent_path;
+    FUNCTION_MARKER(0x8003BC08, "SLUS_005.78");
+    const ScenePath *anchor_path;
+    FallbackWorkspace work;
+    const ScenePath *current, *node, *root, *candidate, *selected = 0;
+    uint32 flags, scene;
+    const PathDefinition *parent;
+    uint32 same_definition;
+    const ScenePath **first, **second, **third;
+    uint32 offset, scan, slot, phase, end, value, x, y, z;
+    /* A skipped same-path probe has no sampled frame or output vector */
+    uint32 first_frame = 0xFFFFFFFF, previous_frame = 0xFFFFFFFF, next_frame = 0xFFFFFFFF;
+    uint32 query, displacement;
+    sint32 status = -1, best, signed_y;
+    flags = this->path_flags;
+    if ((flags & 0x440000) != 0)
+    {
+        for (phase = 0; phase < 3; ++phase)
+        {
+            for (offset = 0; offset < 10; ++offset)
+                work.chains[phase][offset] = fallback_defaults.chains[offset];
+        }
+        scene = OriginalDefaults::SceneContextIdentity;
+        current = camera_motion.path;
+        node = (current->adjacent[0]);
+        if (node != 0 && (((const PathDefinition *)((((const ScenePath *)(node))->definition) != 0 ? (((const ScenePath *)(node))->definition) : (const PathDefinition *)0))->flags & 0x10) != 0)
+        {
+            selected = node->fallback;
+            if (selected != 0)
+            {
+                root = selected;
+                if (selected != current)
+                {
+                    first_frame = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                    if (first_frame != 0xFFFFFFFF)
+                        first_frame = (uint32)((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)first_frame, position, work.probe.words, direction, 4096);
+                }
+                if (first_frame != 0xFFFFFFFF)
+                {
+                    value = work.probe.words[0];
+                    x = position[0];
+                    y = work.probe.words[1];
+                    work.probe.words[0] = value - x;
+                    x = position[1];
+                    y -= x;
+                    z = work.probe.words[2];
+                    work.probe.words[1] = y;
+                    x = position[2];
+                    work.probe.words[2] = z - x;
+                    if ((sint32)y > 0)
+                        first_frame = 0xFFFFFFFF;
+                    if (first_frame != 0xFFFFFFFF)
+                        goto return_selected;
+                }
+                node = (selected->adjacent[1]);
+                if (node != 0)
+                {
+                    current = camera_motion.path;
+                    selected = node;
+                    if (selected != current)
+                    {
+                        previous_frame = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                        if (previous_frame != 0xFFFFFFFF)
+                            previous_frame = (uint32)((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)previous_frame, position, work.probe.words, direction, 4096);
+                    }
+                    if (previous_frame != 0xFFFFFFFF)
+                    {
+                        value = work.probe.words[0];
+                        x = position[0];
+                        y = work.probe.words[1];
+                        work.probe.words[0] = value - x;
+                        x = position[1];
+                        y -= x;
+                        z = work.probe.words[2];
+                        work.probe.words[1] = y;
+                        x = position[2];
+                        work.probe.words[2] = z - x;
+                        if ((sint32)y > 0)
+                            previous_frame = 0xFFFFFFFF;
+                        if (previous_frame != 0xFFFFFFFF)
+                            goto return_selected;
+                    }
+                }
+                if ((root->node.state_flags & 0x10) != 0)
+                {
+                    node = root->fallback;
+                    if (node != 0)
+                    {
+                        current = camera_motion.path;
+                        selected = node;
+                        if (selected != current)
+                        {
+                            next_frame = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                            if (next_frame != 0xFFFFFFFF)
+                            {
+                                next_frame = (uint32)((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)next_frame, position, work.probe.words, direction, 4096);
+                            }
+                        }
+                        if (next_frame != 0xFFFFFFFF)
+                        {
+                            value = work.probe.words[0];
+                            x = position[0];
+                            y = work.probe.words[1];
+                            work.probe.words[0] = value - x;
+                            x = position[1];
+                            y -= x;
+                            z = work.probe.words[2];
+                            work.probe.words[1] = y;
+                            x = position[2];
+                            work.probe.words[2] = z - x;
+                            if ((sint32)y > 0)
+                                next_frame = 0xFFFFFFFF;
+                            if (next_frame != 0xFFFFFFFF)
+                                goto return_selected;
+                        }
+                    }
+                }
+            }
+            scene = OriginalDefaults::SceneContextIdentity;
+        }
+        else if (node != 0)
+            scene = OriginalDefaults::SceneContextIdentity;
+        work.chains[0][0] = camera_motion.path;
+        work.chains[1][0] = camera_motion.path;
+        for (scan = 1; scan < 10; ++scan)
+        {
+            first = work.chains[0] + scan;
+            second = work.chains[1] + scan;
+            third = work.chains[2] + scan;
+            node = first[-1];
+            if (node != 0)
+                *first = (node->adjacent[1]);
+            current = camera_motion.path;
+            if (*first == current)
+                *first = 0;
+            node = second[-1];
+            if (node != 0)
+                *second = (node->adjacent[0]);
+            current = camera_motion.path;
+            if (*second == current)
+            {
+                node = *first;
+                if ((((const PathDefinition *)((((const ScenePath *)(node))->definition) != 0 ? (((const ScenePath *)(node))->definition) : (const PathDefinition *)0))->flags & 0x100011) != 0)
+                    *second = (node->definition->flags & 0x100010) != 0 ? node->fallback : 0;
+                else
+                    *second = 0;
+            }
+            if (*second != 0)
+            {
+                node = second[-1];
+                if ((((const PathDefinition *)((((const ScenePath *)(node))->definition) != 0 ? (((const ScenePath *)(node))->definition) : (const PathDefinition *)0))->flags & 0x100011) != 0)
+                    *third = (node->definition->flags & 0x100010) != 0 ? node->fallback : 0;
+            }
+            slot = 0;
+            while (*first != 0 || *second != 0)
+            {
+                candidate = *(slot == 0 ? first : slot == 1 ? second : third);
+                if (candidate != 0)
+                {
+                    query = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                    if (query != 0xFFFFFFFF)
+                    {
+                        status = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame((sint32)query, position, work.scratch.words, direction, 4096);
+                        // Keep the copied query result separate from later status rejection
+                        query = (uint32)status;
+                    }
+                    if (status >= 0)
+                    {
+                        x = work.scratch.words[0] - position[0] + 24576;
+                        if (x > 0xC000)
+                            status = -1;
+                        else
+                        {
+                            z = work.scratch.words[2] - position[2] + 24576;
+                            if (z > 0xC000)
+                                status = -1;
+                        }
+                    }
+                }
+                else
+                    query = 0xFFFFFFFF;
+                if (query != 0xFFFFFFFF)
+                {
+                    x = work.scratch.words[0] - position[0];
+                    work.scratch.words[0] = x;
+                    y = work.scratch.words[1] - position[1];
+                    z = work.scratch.words[2];
+                    work.scratch.words[1] = y;
+                    z -= position[2];
+                    work.scratch.words[2] = z;
+                    if ((sint32)y > 0)
+                        query = 0xFFFFFFFF;
+                    if (query != 0xFFFFFFFF)
+                    {
+                        selected = candidate;
+                        goto return_selected;
+                    }
+                }
+                slot += 1;
+                if (slot >= 3)
+                    break;
+            }
+        }
+        for (offset = 0; offset < 5; ++offset)
+            work.candidates[offset] = fallback_defaults.candidates[offset];
+        if (work.chains[1][1] != 0)
+        {
+            if (work.chains[1][2] != 0)
+            {
+                current = camera_motion.path;
+                adjacent_path = (current->adjacent[0]);
+                adjacent_path = (adjacent_path->adjacent[0]);
+                adjacent_path = (adjacent_path->adjacent[1]);
+                work.candidates[0] = adjacent_path;
+                current = camera_motion.path;
+                if (adjacent_path == current)
+                    work.candidates[0] = 0;
+            }
+            scene = OriginalDefaults::SceneContextIdentity;
+            current = camera_motion.path;
+            adjacent_path = (current->adjacent[0]);
+            node = (adjacent_path->adjacent[1]);
+            if (node != 0)
+            {
+                adjacent_path = (node->adjacent[1]);
+                work.candidates[1] = adjacent_path;
+                current = camera_motion.path;
+                if (adjacent_path == current)
+                {
+                    work.candidates[1] = 0;
+                    current = camera_motion.path;
+                }
+                node = (current->adjacent[0]);
+                adjacent_path = (node->adjacent[1]);
+                if (adjacent_path != 0)
+                {
+                    work.candidates[2] = adjacent_path;
+                    if (adjacent_path == camera_motion.path)
+                        work.candidates[2] = 0;
+                }
+            }
+        }
+        node = work.chains[0][3];
+        if (node != 0)
+        {
+            adjacent_path = (node->adjacent[0]);
+            work.candidates[3] = adjacent_path;
+            if (adjacent_path == camera_motion.path)
+                work.candidates[3] = 0;
+        }
+        node = work.chains[1][1];
+        if (node != 0 && (((const PathDefinition *)((((const ScenePath *)(node))->definition) != 0 ? (((const ScenePath *)(node))->definition) : (const PathDefinition *)0))->flags & 0x10) != 0)
+        {
+            node = node->fallback;
+            if (node != 0)
+            {
+                adjacent_path = (node->adjacent[1]);
+                work.candidates[4] = adjacent_path;
+                if (adjacent_path == camera_motion.path)
+                    work.candidates[4] = 0;
+            }
+        }
+        for (scan = 0; scan < 5; ++scan)
+        {
+            selected = work.candidates[scan];
+            query = 0xFFFFFFFF;
+            if (selected != 0)
+            {
+                query = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                if (query != 0xFFFFFFFF)
+                    query = (uint32)((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)query, position, work.scratch.words, direction, 4096);
+            }
+            if (query != 0xFFFFFFFF)
+            {
+                x = work.scratch.words[0] - position[0];
+                work.scratch.words[0] = x;
+                y = work.scratch.words[1] - position[1];
+                z = work.scratch.words[2];
+                work.scratch.words[1] = y;
+                z -= position[2];
+                work.scratch.words[2] = z;
+                if ((sint32)y > 0)
+                    query = 0xFFFFFFFF;
+                if (query != 0xFFFFFFFF)
+                    goto return_selected;
+            }
+        }
+        selected = 0;
+        goto return_selected;
+    }
+    if ((flags & 4) != 0)
+    {
+        status = -1;
+        current = camera_motion.path;
+        if ((current->adjacent[1]) != 0)
+        {
+            for (offset = 0; offset < 4; ++offset)
+                work.alternate[offset] = fallback_defaults.alternate[offset];
+            current = camera_motion.path;
+            adjacent_path = (current->adjacent[1]);
+            work.alternate[0] = adjacent_path;
+            if (adjacent_path != 0)
+            {
+                current = camera_motion.path;
+                adjacent_path = (current->adjacent[1]);
+                adjacent_path = (adjacent_path->adjacent[1]);
+                work.alternate[1] = adjacent_path;
+                if (adjacent_path != 0)
+                {
+                    current = camera_motion.path;
+                    adjacent_path = (current->adjacent[1]);
+                    adjacent_path = (adjacent_path->adjacent[1]);
+                    adjacent_path = (adjacent_path->adjacent[1]);
+                    work.alternate[2] = adjacent_path;
+                    if (adjacent_path != 0)
+                    {
+                        current = camera_motion.path;
+                        adjacent_path = (current->adjacent[1]);
+                        adjacent_path = (adjacent_path->adjacent[1]);
+                        adjacent_path = (adjacent_path->adjacent[1]);
+                        work.alternate[3] = (adjacent_path->adjacent[1]);
+                    }
+                }
+            }
+            for (scan = 0; scan < 4; ++scan)
+            {
+                if (status != -1)
+                    goto return_selected;
+                selected = work.alternate[scan];
+                query = 0xFFFFFFFF;
+                if (selected != 0)
+                    query = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+                if (query != 0xFFFFFFFF)
+                    status = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)query, position, work.probe.words, direction, 4096);
+                if (status != -1)
+                {
+                    x = work.probe.words[0] - position[0];
+                    work.probe.words[0] = x;
+                    y = work.probe.words[1] - position[1];
+                    z = work.probe.words[2];
+                    work.probe.words[1] = y;
+                    z -= position[2];
+                    work.probe.words[2] = z;
+                    if ((sint32)y > 0)
+                        status = -1;
+                    if (status != -1 && (((const PathDefinition *)((const PathDefinition *)((selected->definition))))->flags & 0x10) != 0)
+                    {
+                        value = (uint32)SinQ14(yaw);
+                        displacement = (uint32)(((sint64)((sint32)value >> 2) * 20480) >> 12);
+                        value = (uint32)SinQ14((sint16)(1024 - (uint16)yaw));
+                        value = (uint32)(((sint64)((sint32)value >> 2) * 20480) >> 12);
+                        x = position[0];
+                        y = position[1];
+                        z = position[2];
+                        work.displaced.words[0] = x;
+                        work.displaced.words[1] = y;
+                        work.displaced.words[2] = z;
+                        x = work.displaced.words[0];
+                        z = work.displaced.words[2];
+                        work.displaced.words[0] = x - displacement;
+                        work.displaced.words[2] = z - value;
+                        query = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(work.displaced.words, direction, 0xFFFB0000);
+                        if (query == 0xFFFFFFFF)
+                            status = -1;
+                        else
+                            status = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)query, work.displaced.words, work.probe.words, direction, 8192);
+                    }
+                }
+            }
+        }
+        if (status == -1)
+            selected = 0;
+        goto return_selected;
+    }
+    if ((flags & 0x20) == 0)
+    {
+        signed_y = (sint8)path_routing.fallback_phase;
+        if (signed_y == 1)
+        {
+            current = camera_motion.path;
+            path_routing.fallback_phase = 2;
+            selected = current->fallback;
+            goto return_selected;
+        }
+        selected = 0;
+        if (movement_mode != 2 || this->state != 19)
+            goto return_selected;
+        current = camera_motion.path;
+        if ((((const PathDefinition *)((((const ScenePath *)(current))->definition) != 0 ? (((const ScenePath *)(current))->definition) : (const PathDefinition *)0))->flags & 0x90010) == 0)
+            goto return_selected;
+        selected = (current->adjacent[1]);
+        status = -1;
+        // Original stack-pointer frame argument is negative and clamps to zero
+        if (selected != 0)
+            status = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame(0, position, work.endpoint.words, direction, 4096);
+        if (status == -1)
+            selected = 0;
+        goto return_selected;
+    }
+    for (offset = 0; offset < 9; ++offset)
+        work.ranked[offset] = fallback_defaults.ranked[offset];
+    for (offset = 0; offset < 9; ++offset)
+        work.costs[offset] = fallback_defaults.costs[offset];
+    current = camera_motion.path;
+    selected = current->fallback;
+    best = -1;
+    status = -1;
+    if (selected != 0 && (((const PathDefinition *)((((const ScenePath *)(current))->definition) != 0 ? (((const ScenePath *)(current))->definition) : (const PathDefinition *)0))->flags & 0x100000) != 0)
+    {
+        query = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->FindHeightFrame(position, direction, 0xFFFB0000);
+        if (query != 0xFFFFFFFF)
+            status = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)query, position, work.displaced.words, direction, 81920);
+        if (status != -1)
+        {
+            x = work.displaced.words[0] - position[0];
+            work.displaced.words[0] = x;
+            y = work.displaced.words[1] - position[1];
+            z = work.displaced.words[2];
+            work.displaced.words[1] = y;
+            z -= position[2];
+            work.displaced.words[2] = z;
+            if ((sint32)y > 0)
+                status = -1;
+        }
+    }
+    anchor_path = (const ScenePath *)(character_controller.path_transition.anchor_path);
+    node = (anchor_path->adjacent[1]);
+    if (node != 0)
+    {
+        current = camera_motion.path;
+        if (current == node)
+        {
+            selected = current;
+            query = ((const PathDefinition *)((((const ScenePath *)(current))->definition) != 0 ? (((const ScenePath *)(current))->definition) : (const PathDefinition *)0))->FindHeightFrame(position, direction, 0xFFFB0000);
+            status = ((const PathDefinition *)((const PathDefinition *)((selected->definition))))->ProjectFrame((sint32)query, position, work.displaced.words, direction, 4096);
+            if (status >= 0)
+            {
+                x = work.displaced.words[0] - position[0] + 24576;
+                if (x > 0xC000)
+                    goto ranked_shortcut_finished;
+                z = work.displaced.words[2] - position[2] + 24576;
+                if (z > 0xC000)
+                    goto ranked_shortcut_finished;
+            }
+            x = work.displaced.words[0] - position[0];
+            work.displaced.words[0] = x;
+            y = work.displaced.words[1] - position[1];
+            z = work.displaced.words[2];
+            work.displaced.words[1] = y;
+            z -= position[2];
+            work.displaced.words[2] = z;
+            if ((sint32)y >= 4097)
+                status = -1;
+        }
+    }
+ranked_shortcut_finished:
+    if (status != -1)
+        goto ranked_finished;
+    scene = OriginalDefaults::SceneContextIdentity;
+    current = camera_motion.path;
+    adjacent_path = (current->adjacent[1]);
+    work.ranked[0] = adjacent_path;
+    if (adjacent_path != 0)
+    {
+        current = camera_motion.path;
+        adjacent_path = (current->adjacent[1]);
+        work.ranked[1] = (adjacent_path->adjacent[1]);
+    }
+    current = camera_motion.path;
+    node = (current->adjacent[0]);
+    if (node != 0)
+    {
+        work.ranked[2] = (node->adjacent[1]);
+        current = camera_motion.path;
+        adjacent_path = (current->adjacent[0]);
+        node = (adjacent_path->adjacent[0]);
+        if (node != 0)
+            work.ranked[3] = (node->adjacent[1]);
+    }
+    for (phase = 0; phase < 3; ++phase)
+    {
+        if (phase == 0)
+        {
+            scan = 0;
+            end = 4;
+        }
+        else if (phase == 1)
+        {
+            if (work.ranked[1] != 0)
+            {
+                current = camera_motion.path;
+                adjacent_path = (current->adjacent[1]);
+                adjacent_path = (adjacent_path->adjacent[1]);
+                work.ranked[4] = (adjacent_path->adjacent[1]);
+            }
+            current = camera_motion.path;
+            node = (current->adjacent[0]);
+            if (node != 0)
+            {
+                node = (node->adjacent[0]);
+                if (node != 0)
+                {
+                    node = (node->adjacent[0]);
+                    if (node != 0)
+                        work.ranked[5] = (node->adjacent[1]);
+                }
+            }
+            scan = 4;
+            end = 6;
+        }
+        else
+        {
+            if (work.ranked[0] != 0)
+            {
+                current = camera_motion.path;
+                adjacent_path = (current->adjacent[1]);
+                work.ranked[6] = (adjacent_path->adjacent[0]);
+            }
+            scene = OriginalDefaults::SceneContextIdentity;
+            current = camera_motion.path;
+            node = (current->adjacent[0]);
+            if (node != 0)
+                work.ranked[7] = (node->adjacent[0]);
+            current = camera_motion.path;
+            work.ranked[8] = (current->adjacent[0]);
+            scan = 6;
+            end = 9;
+        }
+        for (; scan < end; ++scan)
+        {
+            candidate = work.ranked[scan];
+            if (candidate == 0)
+                continue;
+            current = camera_motion.path;
+            parent = candidate->definition;
+            same_definition = parent == current->definition;
+            if (same_definition != 0 || candidate == current)
+                continue;
+            query = ((const PathDefinition *)(parent))->FindHeightFrame(position, direction, 0xFFFB0000);
+            work.frames[scan] = query;
+            if (query == 0xFFFFFFFF)
+                continue;
+            candidate = work.ranked[scan];
+            status = ((const PathDefinition *)((const PathDefinition *)((candidate->definition))))->ProjectFrame((sint32)work.frames[scan], position, work.displaced.words, direction, 4096);
+            if (status >= 0)
+            {
+                x = work.displaced.words[0] - position[0] + 24576;
+                if (x > 0xC000)
+                    status = -1;
+                else
+                {
+                    z = work.displaced.words[2] - position[2] + 24576;
+                    if (z > 0xC000)
+                        status = -1;
+                }
+            }
+            if (status != -1)
+            {
+                x = work.displaced.words[0] - position[0];
+                work.displaced.words[0] = x;
+                y = work.displaced.words[1] - position[1];
+                z = work.displaced.words[2];
+                work.displaced.words[1] = y;
+                z -= position[2];
+                work.displaced.words[2] = z;
+                if ((sint32)y > 0)
+                    status = -1;
+                else
+                {
+                    value = 0 - y;
+                    work.costs[scan] = value;
+                    if (best == -1 || (sint32)value < (sint32)work.costs[(uint32)best])
+                        best = (sint32)scan;
+                }
+            }
+        }
+        if (best != -1)
+        {
+            if (phase == 0)
+                status = (sint32)work.frames[(uint32)best];
+            selected = work.ranked[(uint32)best];
+        }
+        if (phase < 2 && status != -1)
+            goto ranked_finished;
+    }
+ranked_finished:
+    if (status < 0)
+    {
+        MarkPathSearchFailed();
+        selected = 0;
+    }
+return_selected:
+    return selected;
+}
+
+uint32 AnimatedObject::DetachCharacterFromPath(uint32 *direction)
+{
+    FUNCTION_MARKER(0x8004FA54, "SLUS_005.78");
+    PathVector vector;
+    const PathDefinition *parent;
+    const MATRIX *matrix;
+    uint32 flags, x, y, z, frame, forward, reverse, value, clock, mode, result;
+    ApplyPathVelocityChange(0);
+    this->flags = (this->flags & 0xFFFFF7FF) | 0x2000;
+    parent = (this->path_definition);
+    if (parent != 0 && (parent->transform) != 0)
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        vector.words[0] = x;
+        vector.words[1] = y;
+        vector.words[2] = z;
+        PushMatrix();
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        x = xport_load_le32((const uint8 *)matrix);
+        y = xport_load_le32((const uint8 *)matrix + 4);
+        xport_gte_write_control(0, x);
+        xport_gte_write_control(1, y);
+        x = xport_load_le32((const uint8 *)matrix + 8);
+        y = xport_load_le32((const uint8 *)matrix + 12);
+        z = xport_load_le32((const uint8 *)matrix + 16);
+        xport_gte_write_control(2, x);
+        xport_gte_write_control(3, y);
+        xport_gte_write_control(4, z);
+        ApplyRotMatrixLV(&vector.vector, (VECTOR *)this->position);
+        PopMatrix();
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        x = this->position[0];
+        y = matrix->t[0];
+        parent = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+        this->position[0] = x + y;
+        matrix = (const MATRIX *)((parent->transform) != 0 ? &(parent->transform)->matrix : (MATRIX *)0);
+        x = this->position[1];
+        y = matrix->t[1];
+        parent = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+        this->position[1] = x + y;
+        matrix = (const MATRIX *)((parent->transform) != 0 ? &(parent->transform)->matrix : (MATRIX *)0);
+        x = this->position[2];
+        y = matrix->t[2];
+        this->position[2] = x + y;
+    }
+    else
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        this->position[0] = x;
+        this->position[1] = y;
+        this->position[2] = z;
+    }
+    frame = (uint16)this->path_frame;
+    flags = this->flags;
+    forward = (flags >> 4) & 1;
+    reverse = (frame >> 15) ^ forward;
+    ((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->SampleTangent(&character_controller.path_tangent, (sint32)(reverse << 4));
+    if (forward != reverse)
+    {
+        x = (uint32)character_controller.path_tangent.vx;
+        z = (uint32)character_controller.path_tangent.vz;
+        character_controller.path_tangent.vx = 0 - x;
+        character_controller.path_tangent.vz = 0 - z;
+    }
+    flags = this->flags;
+    if (flags & 0x400)
+    {
+        x = (uint32)character_controller.path_tangent.vx;
+        character_controller.path_tangent.vy = 0;
+        if (x + 26754 > 0xD103 || (uint32)character_controller.path_tangent.vz + 26754 > 0xD103)
+        {
+            for (;;)
+            {
+                x = (uint32)character_controller.path_tangent.vx;
+                z = (uint32)character_controller.path_tangent.vz;
+                character_controller.path_tangent.vx = (uint32)((sint32)x >> 1);
+                y = (uint32)character_controller.path_tangent.vy;
+                x = (uint32)character_controller.path_tangent.vx;
+                z = (uint32)((sint32)z >> 1);
+                character_controller.path_tangent.vz = z;
+                character_controller.path_tangent.vy = (uint32)((sint32)y >> 1);
+                if (x + 26754 > 0xD103)
+                    continue;
+                if ((uint32)character_controller.path_tangent.vy + 26754 > 0xD103)
+                    continue;
+                if (z + 26754 <= 0xD103)
+                    break;
+            }
+        }
+        result = (uint32)VectorNormal(&character_controller.path_tangent, &character_controller.path_tangent);
+    }
+    else
+    {
+        this->flags = flags | 0x400;
+        clock = character_controller.movement.jump_ticks;
+        value = character_controller.flags;
+        mode = (uint16)(character_controller.motion.form_flags >> 16) & 15;
+        character_controller.motion.jump_phase = -1;
+        character_controller.motion.vertical_speed = 0;
+        character_controller.timers.state_ticks = 0;
+        character_controller.timers.jump_duration_ticks = clock;
+        character_controller.flags = value | 0x08000000;
+        result = 0;
+        if (mode == 1)
+            result = this->flags & 0x04000000;
+        if (!result)
+        {
+            value = character_controller.secondary_flags;
+            result = 6;
+            if (!(value & 0x80))
+                character_controller.motion.state_code = 6;
+        }
+    }
+    if (direction)
+    {
+        result = (uint32)character_controller.path_tangent.vx;
+        y = (uint32)character_controller.path_tangent.vy;
+        z = (uint32)character_controller.path_tangent.vz;
+        direction[0] = result;
+        direction[1] = y;
+        direction[2] = z;
+    }
+    return result;
+}
+
+uint32 AnimatedObject::ComputePathMotion(sint32 distance, sint32 height, const VECTOR *direction_vector)
+{
+    FUNCTION_MARKER(0x8003DB7C, "SLUS_005.78");
+    PathVector working, original, next, current, temporary, motion;
+    const ScenePath *initial_path = 0, *path, *path_view, *candidate, *candidate_view, *current_path;
+    uint32 character = 0, special = 0, special_path = 0;
+    const PathDefinition *definition;
+    const MATRIX *matrix;
+    uint32 flags, value, x, y, z, squared, direction, track_direction;
+    uint32 i, stage, stop, valid, first_segment;
+    uint32 previous_x, previous_y, previous_z, result;
+    sint32 category, frame, limit, drop = 0, base_height, initial_distance, reciprocal, factor, length, height_step;
+    category = (sint8)metadata126[0];
+    if (category == 1)
+    {
+        if (behavior != 33)
+            initial_path = camera_motion.path;
+        else
+            initial_path = (this->scene_path);
+    }
+    else if (category == 3 && animation_binding.tracks[0] == -1)
+        initial_path = (this->scene_path);
+    path_routing.fallback_phase = 0;
+    category = (sint8)metadata126[0];
+    if (category == 1)
+        character = 0x800ABD68;
+    else if (movement_mode == 2 && (this->state == 19 || path_routing.flags != 0))
+    {
+        FindPlayerObject(0);
+        special = 1;
+        if ((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x80000) != 0)
+            special_path = 1;
+    }
+    if (special != 0 && (((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x10000) != 0)
+    {
+        definition = (this->path_definition);
+        if (definition != 0 && (definition->transform) != 0)
+        {
+            x = this->position[0];
+            y = this->position[1];
+            z = this->position[2];
+            temporary.words[0] = x;
+            temporary.words[1] = y;
+            temporary.words[2] = z;
+            PushMatrix();
+            matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+            for (i = 0; i < 5; ++i)
+                xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+            ApplyRotMatrixLV(&temporary.vector, &original.vector);
+            PopMatrix();
+            for (i = 0; i < 3; ++i)
+            {
+                matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+                original.words[i] = original.words[i] + matrix->t[i];
+            }
+        }
+        else
+        {
+            x = this->position[0];
+            y = this->position[1];
+            z = this->position[2];
+            original.words[0] = x;
+            original.words[1] = y;
+            original.words[2] = z;
+        }
+        x = original.words[0];
+        y = original.words[1];
+        z = original.words[2];
+        current.words[0] = x;
+        current.words[1] = y;
+        current.words[2] = z;
+        x = current.words[0];
+        y = current.words[1];
+        z = current.words[2];
+        working.words[0] = x;
+        working.words[1] = y;
+        working.words[2] = z;
+        ChangeActorPath(camera_motion.path, working.words, current.words);
+    }
+    initial_distance = distance;
+    base_height = height;
+    if (distance < 0)
+    {
+        initial_distance = 0;
+        distance = 0;
+    }
+    flags = this->path_flags;
+    if ((flags & 0x440000) != 0)
+    {
+        CompleteCharacterPathTransfer(character != 0 ? &character_controller : 0);
+        goto check_direct;
+    }
+    if ((this->flags & 0x2000) != 0 && (flags & 4) != 0)
+        goto prepare_contact;
+    if ((this->path_flags & 0x20) == 0)
+        goto check_direct;
+    if ((this->flags & 0x2000) == 0)
+        goto prepare_position;
+prepare_contact:
+    definition = (this->path_definition);
+    if (definition != 0 && (definition->transform) != 0)
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        temporary.words[0] = x;
+        temporary.words[1] = y;
+        temporary.words[2] = z;
+        PushMatrix();
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        for (i = 0; i < 5; ++i)
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        ApplyRotMatrixLV(&temporary.vector, &original.vector);
+        PopMatrix();
+        for (i = 0; i < 3; ++i)
+        {
+            matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+            original.words[i] = original.words[i] + matrix->t[i];
+        }
+    }
+    else
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        original.words[0] = x;
+        original.words[1] = y;
+        original.words[2] = z;
+    }
+    x = original.words[0];
+    y = original.words[1];
+    z = original.words[2];
+    current.words[0] = x;
+    current.words[1] = y;
+    current.words[2] = z;
+    x = current.words[0];
+    y = current.words[1];
+    z = current.words[2];
+    working.words[0] = x;
+    working.words[1] = y;
+    working.words[2] = z;
+    ChangeActorPath(camera_motion.path, working.words, current.words);
+check_direct:
+    if ((this->flags & 0x2000) != 0)
+        goto direct_vector;
+prepare_position:
+    definition = (this->path_definition);
+    if (definition != 0 && (definition->transform) != 0)
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        temporary.words[0] = x;
+        temporary.words[1] = y;
+        temporary.words[2] = z;
+        PushMatrix();
+        matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+        for (i = 0; i < 5; ++i)
+            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        ApplyRotMatrixLV(&temporary.vector, &original.vector);
+        PopMatrix();
+        for (i = 0; i < 3; ++i)
+        {
+            matrix = (const MATRIX *)((((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform) != 0 ? &(((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->transform)->matrix : (MATRIX *)0);
+            original.words[i] = original.words[i] + matrix->t[i];
+        }
+    }
+    else
+    {
+        x = this->position[0];
+        y = this->position[1];
+        z = this->position[2];
+        original.words[0] = x;
+        original.words[1] = y;
+        original.words[2] = z;
+    }
+    x = original.words[0];
+    y = original.words[1];
+    z = original.words[2];
+    current.words[0] = x;
+    current.words[1] = y;
+    current.words[2] = z;
+    x = current.words[0];
+    y = current.words[1];
+    z = current.words[2];
+    working.words[0] = x;
+    working.words[1] = y;
+    working.words[2] = z;
+    direction = this->flags;
+    direction &= 0x10;
+    if ((this->flags & 0x400) == 0 && (this->path_flags & 0x1222) == 0)
+        goto prepare_next;
+    for (;;)
+    {
+        result = (uint32)((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->ProjectFrame(this->path_frame, working.words, current.words, direction, 4096);
+        if ((sint32)result >= 0)
+            break;
+        frame = this->path_frame;
+        if (frame != (sint16)((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->positions.metadata6 - 1)
+        {
+            direction_vector = &working.vector;
+            if ((sint8)metadata126[0] == 1)
+            {
+                DetachCharacterFromPath(working.words);
+                goto direct_vector;
+            }
+            break;
+        }
+        this->path_frame = (sint16)((uint32)frame - 1);
+    }
+    if ((sint32)working.words[1] < (sint32)current.words[1] && base_height >= 0)
+        current.words[1] = working.words[1];
+    if (distance == 0 && base_height < 0 && (this->path_flags & 0x20) == 0)
+    {
+        x = current.words[0] - working.words[0];
+        y = current.words[1] - working.words[1];
+        z = current.words[2] - working.words[2];
+        motion.words[0] = x;
+        motion.words[1] = y;
+        motion.words[2] = z;
+        if ((sint32)y < 0)
+        {
+            motion.words[1] = 0;
+            reciprocal = 0x40000000 / (sint32)y;
+            if (x + 26754 > 0xD103 || z + 26754 > 0xD103)
+            {
+                x = motion.words[0];
+                y = motion.words[1];
+                z = motion.words[2];
+                squared = (uint32)(((sint64)(sint32)x * (sint32)x) >> 12);
+                squared += (uint32)(((sint64)(sint32)y * (sint32)y) >> 12);
+                squared += (uint32)(((sint64)(sint32)z * (sint32)z) >> 12);
+            }
+            else
+                squared = (uint32)((sint32)(x * x + z * z) >> 12);
+            if ((sint32)squared < 0)
+                value = SquareRoot12((sint32)(squared >> 2)) << 1;
+            else
+                value = SquareRoot12((sint32)squared);
+            factor = (sint32)(uint32)(((sint64)(sint32)value * base_height) >> 12);
+            distance = (sint32)(uint32)(((sint64)factor * reciprocal) >> 18);
+            fixed_math_result = (uint32)distance;
+            initial_distance = distance;
+            if (distance < 0)
+            {
+                distance = 0;
+                initial_distance = 0;
+            }
+        }
+    }
+    drop = (sint32)(working.words[1] - current.words[1]);
+    current.words[0] = working.words[0];
+    current.words[2] = working.words[2];
+    if (drop < -1365 && (this->path_flags & 0x20) == 0 && (special_path & special) == 0 && (character == 0 || ((uint16)(character_controller.motion.form_flags >> 16) & 0xF) != 5) && (((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x11) == 0)
+    {
+        x = current.words[0];
+        y = current.words[1];
+        z = current.words[2];
+        working.words[0] = x;
+        working.words[1] = y;
+        working.words[2] = z;
+        initial_distance = 0;
+        base_height = 0;
+        first_segment = 0;
+        goto finish_fall;
+    }
+prepare_next:
+    x = current.words[0];
+    y = current.words[1];
+    z = current.words[2];
+    next.words[0] = x;
+    next.words[1] = y;
+    next.words[2] = z;
+restart_path:
+    frame = this->path_frame;
+    first_segment = frame < 1;
+    if (frame >= 1 && (this->flags & 0x40) != 0)
+        this->path_frame = (sint16)((uint32)frame - 1);
+    category = (sint8)metadata126[0];
+    path = 0;
+    if (category == 1)
+    {
+        if (behavior != 33)
+            path = camera_motion.path;
+        else
+            path = (this->scene_path);
+    }
+    else if (category == 3 && animation_binding.tracks[0] == -1)
+        path = (this->scene_path);
+    path_view = ((const ScenePath *)(path));
+    stop = 0;
+    if (base_height <= 0)
+    {
+        flags = ((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags;
+        if ((flags & 0x51) >= 0x41 && ((flags & 0x10) == 0 || (path_view != 0 && (path_view->fallback != 0 || path_view->slope_scale != 0))))
+            stop = 1;
+    }
+next_segment:
+    track_direction = direction;
+    candidate = path;
+    frame = this->path_frame;
+    if ((this->flags & 0x40) != 0)
+        frame += 1;
+    else
+        frame -= 1;
+    definition = (const PathDefinition *)((const PathDefinition *)((this->path_definition)));
+    this->path_frame = (sint16)((uint32)frame);
+    valid = 1;
+    if (((uint32)frame & 0xFFFF) < definition->positions.metadata6)
+    {
+        definition->SamplePosition((sint16)frame, next.words, track_direction);
+        if (path != 0 && ((this->flags & 0x400) != 0 || (this->path_flags & 0x1022) != 0))
+        {
+            value = (uint32)this->path_frame;
+            if ((this->flags & 0x40) == 0)
+            {
+                if ((candidate->node.state_flags & 8) != 0)
+                {
+                    candidate = (candidate->adjacent[0]);
+                }
+                track_direction ^= 0x10;
+                value = (uint32)(sint16)((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->positions.metadata6 - value - 1;
+            }
+            candidate_view = ((const ScenePath *)(candidate));
+            if ((candidate_view->node.state_flags & (track_direction | 8)) != 0)
+                limit = candidate_view->motion_limits[0];
+            else
+                limit = candidate_view->motion_limits[1];
+            if (value >= (uint32)limit && limit != -1)
+            {
+                if ((uint32)limit < value)
+                    this->flags = this->flags | 0x2000;
+                valid = 0;
+                this->flags = this->flags | 0x4000;
+            }
+        }
+    }
+    else
+    {
+        valid = 0;
+        this->flags = this->flags | 0x800;
+    }
+    if (valid != 0 && (stop == 0 || drop >= 0) && (this->path_flags & 8) == 0)
+        goto advance;
+    flags = this->path_flags;
+    if ((flags & 0x80000) != 0)
+    {
+        result = (flags & 0xFFF7FFFF) | 0x100000;
+        this->path_flags = result;
+        this->velocity[0] = 0;
+        this->velocity[1] = 0;
+        goto done;
+    }
+    flags = this->flags;
+    if ((flags & 0x6000) != 0 && drop < 0)
+    {
+        this->flags = flags & 0xFFFF9FFF;
+        if ((flags & 0x800) == 0 && stop == 0)
+            goto advance;
+    }
+    if (distance == 0 && (this->path_flags & 8) == 0)
+    {
+        x = current.words[0];
+        y = current.words[1];
+        z = current.words[2];
+        next.words[0] = x;
+        next.words[1] = y;
+        next.words[2] = z;
+        flags = this->flags;
+        this->flags = flags & 0xFFFFF7FF;
+        if ((flags & 0x6000) == 0 && (stop == 0 || drop >= 0))
+            goto advance;
+    }
+    previous_x = this->velocity[0];
+    previous_y = this->velocity[1];
+    previous_z = this->velocity[2];
+    if ((this->path_flags & 2) != 0 && (((const PathDefinition *)((((const ScenePath *)(camera_motion.path))->definition) != 0 ? (((const ScenePath *)(camera_motion.path))->definition) : (const PathDefinition *)0))->flags & 0x10000) == 0 && CanContinuePathStep() != 0)
+        goto end_contact;
+    if (character != 0 && character_controller.motion.slope_scale != 0 && (uint32)initial_distance - 1 < 0x3FF && base_height < 512)
+        goto end_contact;
+    if ((ChangeActorPath(path, working.words, current.words) & 0xFF) == 0)
+        goto end_contact;
+    if ((((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags & 0x40) != 0)
+    {
+        drop = (sint32)(working.words[1] - current.words[1]);
+        if (drop < 1366)
+        {
+            if ((this->flags & 0x400) != 0)
+                goto adjust_velocity;
+            if ((this->path_flags & 0x1022) == 0)
+            {
+                x = current.words[0];
+                y = current.words[1];
+                z = current.words[2];
+                working.words[0] = x;
+                working.words[1] = y;
+                working.words[2] = z;
+            }
+        }
+        else
+            this->flags = this->flags | 0x400;
+    }
+    if ((this->flags & 0x400) == 0 && (this->path_flags & 0x1022) == 0)
+        goto check_path_change;
+adjust_velocity:
+    x = this->velocity[0] - previous_x;
+    motion.words[0] = x;
+    y = this->velocity[1] - previous_y;
+    motion.words[1] = y;
+    z = this->velocity[2] - previous_z;
+    motion.words[2] = z;
+    base_height = (sint32)((uint32)base_height + y);
+    motion.words[1] = 0;
+    height = (sint32)((uint32)height + y);
+    if (x + 26754 > 0xD103 || z + 26754 > 0xD103)
+    {
+        x = motion.words[0];
+        y = motion.words[1];
+        z = motion.words[2];
+        squared = (uint32)(((sint64)(sint32)x * (sint32)x) >> 12);
+        squared += (uint32)(((sint64)(sint32)y * (sint32)y) >> 12);
+        squared += (uint32)(((sint64)(sint32)z * (sint32)z) >> 12);
+    }
+    else
+        squared = (uint32)((sint32)(x * x + z * z) >> 12);
+    if ((sint32)squared < 0)
+        motion.words[1] = SquareRoot12((sint32)(squared >> 2)) << 1;
+    else
+        motion.words[1] = SquareRoot12((sint32)squared);
+    value = Atan2Angle((sint32)motion.words[2], (sint32)motion.words[0]);
+    if ((((uint32)(sint16)value - (uint32)this->target_yaw - 1024) & 0xFFF) >= 0x800)
+        motion.words[1] = 0 - motion.words[1];
+    if ((sint32)((uint32)distance + motion.words[1]) <= 0)
+        motion.words[1] = 1 - (uint32)distance;
+    initial_distance = (sint32)((uint32)initial_distance + motion.words[1]);
+    distance = (sint32)((uint32)distance + motion.words[1]);
+check_path_change:
+    for (stage = 2; stage <= 5; ++stage)
+    {
+        if (path == initial_path)
+            break;
+        category = (sint8)metadata126[0];
+        current_path = 0;
+        if (category == 1)
+        {
+            if (behavior != 33)
+                current_path = camera_motion.path;
+            else
+                current_path = (this->scene_path);
+        }
+        else if (category == 3 && animation_binding.tracks[0] == -1)
+            current_path = (this->scene_path);
+        if (current_path != initial_path)
+            continue;
+        if (stage == 2 && (((const PathDefinition *)((const PathDefinition *)((path_view->definition))))->flags & 0x10) == 0)
+            continue;
+        if (stage == 3 && (((const PathDefinition *)((((const ScenePath *)(camera_motion.path))->definition) != 0 ? (((const ScenePath *)(camera_motion.path))->definition) : (const PathDefinition *)0))->flags & 0x80000) == 0)
+            continue;
+        if (stage == 4 && (((const PathDefinition *)((((const ScenePath *)(initial_path))->definition) != 0 ? (((const ScenePath *)(initial_path))->definition) : (const PathDefinition *)0))->flags & 0x10) == 0)
+            continue;
+        if (stage == 5 && special == 0)
+            continue;
+        if ((sint8)path_routing.fallback_phase == 0)
+        {
+            flags = this->flags;
+            path_routing.fallback_phase = stage;
+            this->flags = flags | 0x800;
+            goto end_contact;
+        }
+    }
+    this->flags = this->flags & 0xFFFFF7FF;
+    goto restart_path;
+end_contact:
+    flags = this->flags;
+    this->flags = flags & 0xFFFF9FFF;
+    if ((flags & 0x800) == 0)
+        goto advance;
+    category = (sint8)metadata126[0];
+    if (category == 1 || (((uint32)category - 3) & 0xFF) < 2)
+    {
+        ((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->SampleTangent(&motion.vector, (sint32)direction);
+        if ((this->flags & 0x400) != 0 || (this->path_flags & 0x1002) != 0)
+        {
+            x = motion.words[0];
+            motion.words[1] = 0;
+            if (x + 26754 > 0xD103 || motion.words[2] + 26754 > 0xD103)
+            {
+                do
+                {
+                    x = (uint32)((sint32)motion.words[0] >> 1);
+                    y = (uint32)((sint32)motion.words[1] >> 1);
+                    z = (uint32)((sint32)motion.words[2] >> 1);
+                    motion.words[0] = x;
+                    motion.words[1] = y;
+                    motion.words[2] = z;
+                } while (x + 26754 > 0xD103 || y + 26754 > 0xD103 || z + 26754 > 0xD103);
+            }
+            VectorNormal(&motion.vector, &motion.vector);
+        }
+        if ((this->flags & 0x40) == 0)
+            distance = (sint32)(0 - (uint32)distance);
+        for (i = 0; i < 3; ++i)
+            motion.words[i] = (uint32)(((sint64)(sint32)motion.words[i] * distance) >> 12);
+        x = working.words[0] + motion.words[0];
+        y = working.words[1] + motion.words[1];
+        z = working.words[2] + motion.words[2];
+        working.words[0] = x;
+        working.words[1] = y;
+        working.words[2] = z;
+        working.words[1] = y + (uint32)height;
+    }
+    this->velocity[0] = working.words[0] - original.words[0];
+    this->velocity[1] = working.words[1] - original.words[1];
+    result = original.words[2];
+    this->velocity[2] = working.words[2] - result;
+    goto done;
+advance:
+    if ((this->flags & 0x400) != 0 || (this->path_flags & 0x1222) != 0)
+    {
+        x = next.words[0] - current.words[0];
+        y = next.words[1] - current.words[1];
+        z = next.words[2] - current.words[2];
+        motion.words[0] = x;
+        motion.words[1] = y;
+        motion.words[2] = z;
+        x = next.words[0];
+        y = next.words[1];
+        z = next.words[2];
+        current.words[0] = x;
+        current.words[1] = y;
+        current.words[2] = z;
+        value = motion.words[1];
+        x = motion.words[0];
+        motion.words[1] = 0;
+        next.words[1] = value;
+        z = motion.words[2];
+        if (x + 26754 > 0xD103 || z + 26754 > 0xD103)
+        {
+            x = motion.words[0];
+            y = motion.words[1];
+            z = motion.words[2];
+            squared = (uint32)(((sint64)(sint32)x * (sint32)x) >> 12);
+            squared += (uint32)(((sint64)(sint32)y * (sint32)y) >> 12);
+            squared += (uint32)(((sint64)(sint32)z * (sint32)z) >> 12);
+        }
+        else
+            squared = (uint32)((sint32)(x * x + z * z) >> 12);
+        if ((sint32)squared < 0)
+            length = (sint32)(SquareRoot12((sint32)(squared >> 2)) << 1);
+        else
+            length = (sint32)SquareRoot12((sint32)squared);
+        motion.words[1] = next.words[1];
+    }
+    else
+    {
+        x = next.words[0] - working.words[0];
+        y = next.words[1] - working.words[1];
+        z = next.words[2] - working.words[2];
+        motion.words[0] = x;
+        motion.words[1] = y;
+        motion.words[2] = z;
+        if (x + 26754 > 0xD103 || y + 26754 > 0xD103 || z + 26754 > 0xD103)
+        {
+            x = motion.words[0];
+            y = motion.words[1];
+            z = motion.words[2];
+            squared = (uint32)(((sint64)(sint32)x * (sint32)x) >> 12);
+            squared += (uint32)(((sint64)(sint32)y * (sint32)y) >> 12);
+            squared += (uint32)(((sint64)(sint32)z * (sint32)z) >> 12);
+        }
+        else
+            squared = (uint32)((sint32)(x * x + y * y + z * z) >> 12);
+        if ((sint32)squared < 0)
+            length = (sint32)(SquareRoot12((sint32)(squared >> 2)) << 1);
+        else
+            length = (sint32)SquareRoot12((sint32)squared);
+    }
+    if (distance < length)
+    {
+        if (length == 0)
+        {
+            xport_mips_break(7);
+            reciprocal = -1;
+        }
+        else
+            reciprocal = 0x40000000 / length;
+        factor = (sint32)(uint32)(((sint64)distance * reciprocal) >> 18);
+        flags = this->flags;
+        fixed_math_result = (uint32)factor;
+        distance = 0;
+        if ((flags & 0x40) == 0)
+            this->path_frame = (sint16)((uint16)this->path_frame + 1);
+        factor = (sint32)fixed_math_result;
+        for (i = 0; i < 3; ++i)
+            motion.words[i] = (uint32)(((sint64)(sint32)motion.words[i] * factor) >> 12);
+        height_step = height;
+    }
+    else if (height != 0)
+    {
+        if (distance != 0)
+        {
+            reciprocal = 0x40000000 / distance;
+            factor = (sint32)(uint32)(((sint64)length * reciprocal) >> 18);
+            distance = (sint32)((uint32)distance - (uint32)length);
+            fixed_math_result = (uint32)factor;
+            height_step = (sint32)(uint32)(((sint64)height * factor) >> 12);
+        }
+        else
+            height_step = height;
+    }
+    else
+    {
+        distance = (sint32)((uint32)distance - (uint32)length);
+        height_step = 0;
+    }
+    x = working.words[0] + motion.words[0];
+    y = working.words[1] + motion.words[1];
+    z = working.words[2] + motion.words[2];
+    working.words[0] = x;
+    working.words[1] = y;
+    working.words[2] = z;
+    if ((this->flags & 0x400) != 0 || (this->path_flags & 0x1222) != 0)
+    {
+        height = (sint32)((uint32)height - (uint32)height_step);
+        value = (uint32)height_step - motion.words[1];
+        y += value;
+        drop = (sint32)((uint32)drop + value);
+        working.words[1] = y;
+        if (drop < -169 && (base_height <= 0 || (first_segment == 0 && (uint32)drop + 5461 >= 0x1001)) && (character == 0 || ((uint16)(character_controller.motion.form_flags >> 16) & 0xF) != 5) && (((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x11) == 0 && ((((const PathDefinition *)((((const ScenePath *)(camera_motion.path))->definition) != 0 ? (((const ScenePath *)(camera_motion.path))->definition) : (const PathDefinition *)0))->flags & 0x80000) == 0 || (this->path_flags & 0x20) == 0) && (special_path & special) == 0)
+        {
+            working.words[1] = y - (uint32)drop;
+            goto finish_fall;
+        }
+    }
+    if (distance != 0)
+        goto next_segment;
+    if (drop <= 0 && behavior != 1)
+    {
+        flags = this->flags;
+        if ((flags & 0x400) != 0 && (special == 0 || (((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->flags & 0x80010) == 0))
+            this->flags = flags | 0x4000;
+    }
+    this->velocity[0] = working.words[0] - original.words[0];
+    this->velocity[1] = working.words[1] - original.words[1];
+    this->velocity[2] = working.words[2] - original.words[2];
+    if ((this->path_flags & 1) != 0 && (((const PathDefinition *)((((const ScenePath *)(camera_motion.path))->definition) != 0 ? (((const ScenePath *)(camera_motion.path))->definition) : (const PathDefinition *)0))->flags & 0x10000) == 0)
+    {
+        this->velocity[2] = 0;
+        this->velocity[0] = 0;
+        character_controller.motion.horizontal_speed = 0;
+    }
+    goto finish_segment;
+finish_fall:
+    if ((this->path_flags & 0x800) != 0)
+        ClearCharacterPathStep();
+    this->flags = this->flags | 0x4000;
+    this->velocity[0] = working.words[0] - original.words[0];
+    this->velocity[1] = working.words[1] - original.words[1];
+    this->velocity[2] = working.words[2] - original.words[2];
+    motion.words[0] = (uint32)initial_distance;
+    motion.words[2] = 0;
+    motion.words[1] = (uint32)base_height;
+    squared = (uint32)(((sint64)initial_distance * initial_distance) >> 12);
+    squared += (uint32)(((sint64)base_height * base_height) >> 12);
+    if (squared != 0)
+    {
+        x = this->velocity[0];
+        reciprocal = 0x40000000 / (sint32)squared;
+        value = (uint32)(((sint64)(sint32)x * (sint32)x) >> 12);
+        y = this->velocity[1];
+        value += (uint32)(((sint64)(sint32)y * (sint32)y) >> 12);
+        z = this->velocity[2];
+        value += (uint32)(((sint64)(sint32)z * (sint32)z) >> 12);
+        factor = (sint32)(uint32)(((sint64)(sint32)value * reciprocal) >> 18);
+        fixed_math_result = (uint32)factor;
+        if (factor >= 0)
+            result = SquareRoot12((sint32)((uint32)factor));
+        else
+            result = SquareRoot12((sint32)((uint32)factor >> 2)) << 1;
+    }
+    else
+        result = 4095;
+    this->path_motion_scale = result;
+    value = this->path_motion_scale;
+    if (value != 0)
+    {
+        reciprocal = 0x1000000 / (sint32)value;
+        x = (uint32)(((sint64)(sint32)this->velocity[0] * reciprocal) >> 12);
+        value = this->path_motion_scale;
+        if (value == 0)
+        {
+            xport_mips_break(7);
+            reciprocal = -1;
+        }
+        else
+            reciprocal = 0x1000000 / (sint32)value;
+        this->velocity[0] = x;
+        y = (uint32)(((sint64)(sint32)this->velocity[1] * reciprocal) >> 12);
+        value = this->path_motion_scale;
+        z = this->velocity[2];
+        this->velocity[1] = y;
+        if (value == 0)
+        {
+            xport_mips_break(7);
+            reciprocal = -1;
+        }
+        else
+            reciprocal = 0x1000000 / (sint32)value;
+        this->velocity[2] = (uint32)(((sint64)(sint32)z * reciprocal) >> 12);
+    }
+finish_segment:
+    result = 1;
+    if (first_segment != 0)
+    {
+        result = 4096;
+        if (this->path_frame == 1)
+        {
+            result = (uint32)((const PathDefinition *)((const PathDefinition *)((this->path_definition))))->ProjectFrame(0, working.words, current.words, direction, 4096);
+            this->path_frame = (sint16)(result);
+        }
+    }
+    goto done;
+direct_vector:
+    if ((this->flags & 0x40) == 0)
+        distance = (sint32)(0 - (uint32)distance);
+    this->velocity[0] = (uint32)(((sint64)direction_vector->vx * distance) >> 12);
+    this->velocity[1] = (uint32)(((sint64)direction_vector->vy * distance) >> 12);
+    this->velocity[2] = (uint32)(((sint64)direction_vector->vz * distance) >> 12);
+    result = this->velocity[1] + (uint32)height;
+    this->velocity[1] = result;
+done:
+    return result;
+}
+
+const ScenePath *ScenePath::Step(uint32 *frame_word, uint32 direction) const
+{
+    FUNCTION_MARKER(0x8003AC94, "SLUS_005.78");
+    uint32 forward;
+    const ScenePath *current = this;
+    const ScenePath *selected;
+    const ScenePath *selected_view;
+    const PathDefinition *definition;
+    forward = (sint32)*frame_word >= 0;
+    if (!forward)
+    {
+        if (current->node.state_flags & 8)
+        {
+            current = (current->adjacent[0]);
+            current = (const ScenePath *)(current);
+        }
+        direction ^= 0x10;
+    }
+    if (current->node.state_flags & (direction | 8))
+        selected = (current->adjacent[1]);
+    else
+        selected = (current->adjacent[0]);
+    if (selected != 0)
+    {
+        if (forward)
+            *frame_word = 0;
+        else
+        {
+            if (selected->node.state_flags & 8)
+            {
+                selected = (selected->adjacent[0]);
+            }
+            selected_view = (const ScenePath *)(selected);
+            definition = (const PathDefinition *)((const PathDefinition *)((selected_view->definition)));
+            *frame_word = (uint32)(sint16)definition->positions.metadata6 - 1;
+        }
+    }
+    return selected;
+}
+
+uint32 PathDefinition::SampleActorPosition(sint32 frame, uint32 *destination, uint32 direction) const
+{
+    const PathTransform *captured_path_transform;
+    FUNCTION_MARKER(0x80056340, "SLUS_005.78");
+    const MATRIX *matrix;
+    PathVector vector;
+    uint32 x, y, z, result;
+    const PathTransform *matrix_transform;
+    if (direction == 0)
+        frame = (sint32)((uint32)(sint32)(sint16)positions.metadata6 - (uint32)frame - 1);
+    matrix_transform = ((captured_path_transform = (this->transform)) != 0 ? (const PathTransform *)((PathTransform *)(captured_path_transform)) : 0);
+    matrix = (matrix_transform != 0 ? &matrix_transform->matrix : (const MATRIX *)0);
+    if (matrix_transform == 0)
+        return SampleVectorTrack(frame, &positions, destination);
+    SampleVectorTrack(frame, &positions, vector.words);
+    PushMatrix();
+    x = xport_load_le32((const uint8 *)matrix);
+    y = xport_load_le32((const uint8 *)matrix + 4);
+    xport_gte_write_control(0, x);
+    xport_gte_write_control(1, y);
+    x = xport_load_le32((const uint8 *)matrix + 8);
+    y = xport_load_le32((const uint8 *)matrix + 12);
+    z = xport_load_le32((const uint8 *)matrix + 16);
+    xport_gte_write_control(2, x);
+    xport_gte_write_control(3, y);
+    xport_gte_write_control(4, z);
+    ApplyRotMatrixLV(&vector.vector, (VECTOR *)destination);
+    PopMatrix();
+    x = destination[0];
+    x += (uint32)matrix->t[0];
+    destination[0] = x;
+    y = destination[1];
+    y += (uint32)matrix->t[1];
+    destination[1] = y;
+    result = destination[2];
+    result += (uint32)matrix->t[2];
+    destination[2] = result;
+    return result;
+}
+
+sint32 ProjectPathStart(const ScenePath *path, uint32 *position, uint32 *floor, uint32 direction)
+{
+    FUNCTION_MARKER(0x800574B4, "SLUS_005.78");
+    sint32 frame, previous_frame;
+    uint32 previous[3], start[3];
+    frame = (sint32)((const PathDefinition *)((const PathDefinition *)((path->definition))))->FindHeightFrame(position, direction, -40960);
+    if (frame >= 0)
+        frame = ((const PathDefinition *)((const PathDefinition *)((path->definition))))->ProjectFrame(frame, position, floor, direction, 8192);
+    previous[0] = floor[0];
+    previous[1] = floor[1];
+    previous[2] = floor[2];
+    previous_frame = frame;
+    path->SamplePosition(0, floor, direction);
+    start[0] = floor[0];
+    start[1] = floor[1];
+    start[2] = floor[2];
+    position[0] = start[0];
+    position[1] = start[1];
+    position[2] = start[2];
+    frame = ((const PathDefinition *)((const PathDefinition *)((path->definition))))->ProjectFrame(0, position, floor, direction, 8192);
+    if (frame < 0)
+    {
+        frame = 0;
+        floor[0] = start[0];
+        floor[1] = start[1];
+        floor[2] = start[2];
+    }
+    if (floor[0] - previous[0] + 24576 > 49152 || floor[2] - previous[2] + 24576 > 49152)
+    {
+        floor[0] = previous[0];
+        floor[1] = previous[1];
+        floor[2] = previous[2];
+        return previous_frame;
+    }
+    return frame;
+}
+
+uint32 AnimatedObject::MarkPathSearchFailed()
+{
+    FUNCTION_MARKER(0x80058714, "SLUS_005.78");
+    uint32 flags = path_flags | 0x800;
+    path_flags = flags;
+    return flags;
+}
+
+uint32 ScenePath::IsProjectionWithinHeight(const uint32 *position, uint32 direction) const
+{
+    FUNCTION_MARKER(0x8003BB10, "SLUS_005.78");
+    FUNCTION_MARKER(0x8003BB18, "SLUS_005.78");
+    uint32 floor[3];
+    sint32 frame, result;
+    if (this == camera_motion.path)
+        return 0;
+    frame = (sint32)definition->FindHeightFrame(position, direction, -327680);
+    if (frame == -1)
+        return 0;
+    result = definition->ProjectFrame(frame, position, floor, direction, 4096);
+    if (result != -1 && (sint32)(floor[1] - position[1]) > 0)
+        result = -1;
+    return result != -1;
 }

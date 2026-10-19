@@ -1,6 +1,13 @@
 #include <stdio.h>
 
 #include "game.h"
+#include "original_defaults.h"
+
+struct FontGlyph
+{
+    uint32 uv_corners;
+    uint32 page_palette;
+};
 
 HudState hud = {0};
 
@@ -25,22 +32,23 @@ const char UiText::Quit[] = "TO QUIT";
 const char UiText::Paused[] = "PAUSED";
 const char UiText::Demo[3][11] = {"DEMO", "D E M O", "D  E  M  O"};
 
-
-
 uint32 DrawText(uint32 position, const char *text, uint32 style, uint32 flags)
 {
     TextureDescriptor *texture;
     uint32 *metadata;
     FUNCTION_MARKER(0x80064FF4, "SLUS_005.78");
-    uint32 index, group, atlas, tile, right, left, top, bottom, width, height;
-    uint32 alignment, length, character, extent, step, result, glyph;
+    TextureDescriptor *group;
+    uint32 index, tile, right, left, top, bottom, width, height;
+    uint32 alignment, length, character, extent, step, result;
+    const uint8 *atlas, *glyph;
     const char *cursor;
-    uint32 first, second, value, shift;
+    FontGlyph glyph_data;
+    const uint8 *glyph_bytes;
     sint32 scale;
     index = OriginalDefaults::FontResourceGroup << 3;
     metadata = resource_groups[index / 8].animation_entries;
-    group = resource_groups[index / 8].material_offset;
-    texture = (TextureDescriptor *)psx_addr(group, sizeof(TextureDescriptor));
+    group = resource_groups[index / 8].texture;
+    texture = group;
     tile = (uint8)metadata[-1];
     scale = (sint32)style >> 16;
     alignment = style & 0xFFFF;
@@ -51,7 +59,7 @@ uint32 DrawText(uint32 position, const char *text, uint32 style, uint32 flags)
     tile = (tile >> 1) & 0x1FF;
     bottom = texture->payload.bytes[3];
     width = right - left + 1;
-    atlas = material_registry.records[tile].data_offset;
+    atlas = material_registry.records[tile].data;
     height = bottom - top + 1;
     if (alignment != 0)
     {
@@ -91,24 +99,12 @@ uint32 DrawText(uint32 position, const char *text, uint32 style, uint32 flags)
             if (character != 32)
             {
                 glyph = atlas + result - 256;
-                first = r_u32((glyph + 3) & 0xFFFFFFFC);
-                first <<= 24 - ((glyph + 3) & 3) * 8;
-                value = r_u32(glyph & 0xFFFFFFFC);
-                shift = (glyph & 3) * 8;
-                if (shift == 0)
-                    first = value;
-                else
-                    first = (first & (0xFFFFFFFF << (32 - shift))) | (value >> shift);
-                second = r_u32((glyph + 7) & 0xFFFFFFFC);
-                second <<= 24 - ((glyph + 7) & 3) * 8;
-                value = r_u32((glyph + 4) & 0xFFFFFFFC);
-                if (shift == 0)
-                    second = value;
-                else
-                    second = (second & (0xFFFFFFFF << (32 - shift))) | (value >> shift);
-                texture->payload.words[0] = first;
-                texture->payload.words[1] = second;
-                result = DrawTexturedQuad(position, 0, group, flags);
+                glyph_bytes = glyph;
+                glyph_data.uv_corners = xport_load_le32(glyph_bytes);
+                glyph_data.page_palette = xport_load_le32(glyph_bytes + 4);
+                texture->payload.words[0] = glyph_data.uv_corners;
+                texture->payload.words[1] = glyph_data.page_palette;
+                result = DrawTexturedQuad(position, 0, texture, flags);
             }
             position += step;
         }
@@ -140,15 +136,17 @@ uint32 DrawHudCounter(uint32 index, uint32 value, uint32 origin_x, uint32 origin
     uint32 *metadata;
     FUNCTION_MARKER(0x80065478, "SLUS_005.78");
     char text[40];
-    uint32 x, y, distance, phase, timer, count, pointer, right, left;
-    uint32 product, result, remainder, groups, pass, group, atlas, glyph, saved_half, blend;
-    uint32 first, second, word, shift, tile;
+    TextureDescriptor *icon, *group;
+    uint32 x, y, distance, phase, timer, count, right, left, top, width;
+    uint32 product, result, remainder, groups, pass, saved_half, blend;
+    const uint8 *atlas, *glyph;
+    uint32 first, second, tile;
     x = origin_x;
     y = origin_y;
     if (index == 1)
     {
-        pointer = resource_groups[28].material_offset;
-        texture = (TextureDescriptor *)psx_addr(pointer, sizeof(TextureDescriptor));
+        icon = resource_groups[28].texture;
+        texture = icon;
         right = texture->payload.bytes[2];
         left = texture->payload.bytes[0];
         x = 20;
@@ -166,17 +164,17 @@ uint32 DrawHudCounter(uint32 index, uint32 value, uint32 origin_x, uint32 origin
     }
     else if (index == 2)
     {
-        pointer = resource_groups[5].material_offset;
-        texture = (TextureDescriptor *)psx_addr(pointer, sizeof(TextureDescriptor));
+        icon = resource_groups[5].texture;
+        texture = icon;
         right = texture->payload.bytes[2];
         left = texture->payload.bytes[0];
-        pointer = resource_groups[28].material_offset;
+        icon = resource_groups[28].texture;
         x = 23;
-        texture = (TextureDescriptor *)psx_addr(pointer, sizeof(TextureDescriptor));
+        texture = icon;
         y = texture->payload.bytes[3];
-        word = texture->payload.bytes[1];
+        top = texture->payload.bytes[1];
         hidden_x = 0 - (right - left + 37);
-        y = y - word + 24;
+        y = y - top + 24;
     }
     phase = hud.counters[index].state;
     distance = x - hidden_x;
@@ -184,8 +182,7 @@ uint32 DrawHudCounter(uint32 index, uint32 value, uint32 origin_x, uint32 origin
         goto slide_in;
     if (phase == 0)
     {
-        pointer = r_u32(0x8008A114);
-        result = (uint32)r_s16(pointer + 46);
+        result = (uint32)screen_render.transition_ticks;
         if (result == 0 && value != 0xFFFFFFFF)
         {
             result = hud.counters[index].shown_value;
@@ -198,7 +195,7 @@ uint32 DrawHudCounter(uint32 index, uint32 value, uint32 origin_x, uint32 origin
     }
     if (phase == 2)
     {
-        if ((game_flow.transition_flags & 0x10) == 0 && r_u16(r_u32(0x8008A4E4) + 262) != 0)
+        if ((game_flow.transition_flags & 0x10) == 0 && level_resource.level_id != 0)
         {
             timer = hud.counters[index].ticks - 1;
             hud.counters[index].ticks = timer;
@@ -252,7 +249,7 @@ uint32 DrawHudCounter(uint32 index, uint32 value, uint32 origin_x, uint32 origin
             hud.counters[index].state = 0;
             goto finish_hud;
         }
-        if (value != 0xFFFFFFFF && (hud.counters[index].shown_value != value || (game_flow.transition_flags & 0x10) != 0 || r_u16(r_u32(0x8008A4E4) + 262) == 0))
+        if (value != 0xFFFFFFFF && (hud.counters[index].shown_value != value || (game_flow.transition_flags & 0x10) != 0 || level_resource.level_id == 0))
         {
             timer = 7 - hud.counters[index].ticks;
             product = distance * (timer & 0xFF);
@@ -272,14 +269,14 @@ draw_hud:
     result = (sint32)index < 2;
     if (index == 1)
     {
-        pointer = resource_groups[28].material_offset;
-        if (count == 0 || pointer == 0)
+        icon = resource_groups[28].texture;
+        if (count == 0 || icon == 0)
             goto finish_hud;
         if (count == 1)
             hud.counters[1].shown_value = 0xFFFFFFFF;
         else if (count == 0xFFFFFFFF)
             count = 1;
-        DrawTexturedQuad(x | (y << 16), 0, pointer, 0);
+        DrawTexturedQuad(x | (y << 16), 0, icon, 0);
         remainder = count - 1;
         groups = remainder >> 2;
         for (pass = 0; pass < 2; ++pass)
@@ -290,10 +287,10 @@ draw_hud:
                     continue;
                 metadata = resource_groups[29].animation_entries;
                 tile = (uint8)metadata[-1];
-                group = resource_groups[((groups + 28) << 3) / 8].material_offset;
+                group = resource_groups[((groups + 28) << 3) / 8].texture;
                 tile = metadata[tile - 1];
-                atlas = material_registry.records[(tile >> 1) & 0x1FF].data_offset;
-                texture = (TextureDescriptor *)psx_addr(group, sizeof(TextureDescriptor));
+                atlas = material_registry.records[(tile >> 1) & 0x1FF].data;
+                texture = group;
                 saved_half = texture->payload.halfwords[3];
                 glyph = atlas + 24;
                 blend = 1;
@@ -301,30 +298,17 @@ draw_hud:
             else
             {
                 metadata = resource_groups[29].animation_entries;
-                group = resource_groups[((groups + 29) << 3) / 8].material_offset;
+                group = resource_groups[((groups + 29) << 3) / 8].texture;
                 tile = (uint8)metadata[-1];
                 tile = metadata[tile - 1];
-                texture = (TextureDescriptor *)psx_addr(group, sizeof(TextureDescriptor));
+                texture = group;
                 saved_half = texture->payload.halfwords[3];
-                atlas = material_registry.records[(tile >> 1) & 0x1FF].data_offset;
+                atlas = material_registry.records[(tile >> 1) & 0x1FF].data;
                 glyph = atlas + ((remainder & 3) << 3);
                 blend = 0;
             }
-            first = r_u32((glyph + 3) & 0xFFFFFFFC);
-            first <<= 24 - ((glyph + 3) & 3) * 8;
-            word = r_u32(glyph & 0xFFFFFFFC);
-            shift = (glyph & 3) * 8;
-            if (shift == 0)
-                first = word;
-            else
-                first = (first & (0xFFFFFFFF << (32 - shift))) | (word >> shift);
-            second = r_u32((glyph + 7) & 0xFFFFFFFC);
-            second <<= 24 - ((glyph + 7) & 3) * 8;
-            word = r_u32((glyph + 4) & 0xFFFFFFFC);
-            if (shift == 0)
-                second = word;
-            else
-                second = (second & (0xFFFFFFFF << (32 - shift))) | (word >> shift);
+            first = xport_load_le32(glyph);
+            second = xport_load_le32(glyph + 4);
             texture->payload.words[0] = first;
             texture->payload.words[1] = second;
             texture->payload.halfwords[3] = saved_half;
@@ -336,9 +320,9 @@ draw_hud:
     {
         if (index != 0)
             goto finish_hud;
-        pointer = resource_groups[1].material_offset;
-        if (pointer != 0)
-            DrawTexturedQuad(x | (y << 16), 0x180018, pointer, 0);
+        icon = resource_groups[1].texture;
+        if (icon != 0)
+            DrawTexturedQuad(x | (y << 16), 0x180018, icon, 0);
         x += 32;
         y += 14;
         value = count;
@@ -348,14 +332,14 @@ draw_hud:
         result = 2;
         if (index != 2)
             goto finish_hud;
-        pointer = resource_groups[5].material_offset;
-        texture = (TextureDescriptor *)psx_addr(pointer, sizeof(TextureDescriptor));
+        icon = resource_groups[5].texture;
+        texture = icon;
         right = texture->payload.bytes[2];
         left = texture->payload.bytes[0];
-        word = right - left + 1;
-        if (pointer != 0)
-            DrawTexturedQuad(x | (y << 16), 0, pointer, 0);
-        x += 4 + word;
+        width = right - left + 1;
+        if (icon != 0)
+            DrawTexturedQuad(x | (y << 16), 0, icon, 0);
+        x += 4 + width;
         y += 15;
         value = count == 0 ? 0 : count - 1;
     }
@@ -365,20 +349,20 @@ finish_hud:
     return result;
 }
 
-uint32 DrawHud(uint32 object_offset)
+uint32 DrawHud(const AnimatedObject *object)
 {
     FUNCTION_MARKER(0x80065BC4, "SLUS_005.78");
     uint32 result, value, index, unchanged, mode;
     const char *text;
     CharacterSettings settings;
     const char *prompt;
-    uint32 target;
+    const TextureDescriptor *target;
     uint32 *group_entries;
     result = game_flow.transition_flags & 0x10;
     if (result == 0)
     {
         hud.suppress_counters = 0;
-        result = p2_func_800678a8() << 24;
+        result = CanOpenPauseMenu() << 24;
         if (result != 0)
         {
             value = game_flow.transition_flags;
@@ -389,7 +373,7 @@ uint32 DrawHud(uint32 object_offset)
                 hud.suppress_counters = 1;
         }
     }
-    if (object_offset == 0)
+    if (object == 0)
         return result;
     CaptureCharacterSettings(&settings);
     if ((game_flow.transition_flags & 0x20000) != 0)
@@ -402,7 +386,7 @@ uint32 DrawHud(uint32 object_offset)
     {
         for (index = 0; index < 3; ++index)
         {
-            if (hud.counters[index].state != 0 || hud.counters[index].shown_value != settings.counters[index] || (game_flow.transition_flags & 0x10) != 0 || r_u16(r_u32(0x8008A4E4) + 262) == 0)
+            if (hud.counters[index].state != 0 || hud.counters[index].shown_value != settings.counters[index] || (game_flow.transition_flags & 0x10) != 0 || level_resource.level_id == 0)
             {
                 // Indices0..2 overwrite all three incoming layout values
                 DrawHudCounter(index, settings.counters[index], 0, 0, 0);
@@ -428,16 +412,16 @@ uint32 DrawHud(uint32 object_offset)
             text = UiText::Demo[1];
         DrawText(0x00CA00A0, text, 1, 0);
     }
-    result = r_u16(r_u32(0x8008A4E4) + 262);
+    result = level_resource.level_id;
     if (result != 0)
     {
         return result;
     }
-    index = r_u8(0x800B999B);
+    index = scene_events.world_name_index;
     if (index != 0)
     {
-        DrawText(0x005500A0, world_level_names[index - 1].text, 1, 0);
-        index = r_u8(0x800B999B);
+        DrawText(0x005500A0, level_resource.world_names[index - 1].text, 1, 0);
+        index = scene_events.world_name_index;
     }
     if (index == 0)
         hud.prompt_phase = 0;
@@ -453,17 +437,17 @@ uint32 DrawHud(uint32 object_offset)
     }
     value = render_commands.overlay_tail;
     mode = hud.prompt_phase;
-    w_u32(0x8008A438, value);
+    hud.prompt_tail = value;
     if (mode == 0)
     {
-        target = interface_resources->textures_offset + 220u;
+        target = interface_resources->textures + 11;
         if (target != 0)
             DrawTexturedQuad(0x00C8001E, 0, target, 0);
         prompt = UiText::SwitchPlayer;
     }
     else
     {
-        target = interface_resources->textures_offset + 160u;
+        target = interface_resources->textures + 8;
         if (target != 0)
             DrawTexturedQuad(0x00C8001E, 0, target, 0);
         prompt = UiText::EnterLevel;

@@ -1,3 +1,7 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "game.h"
 
 struct CheatRecord
@@ -6,62 +10,42 @@ struct CheatRecord
     uint32 message[21];
 };
 
-static const CheatRecord cheats[12] = {
-    {{0x0000E443, 0x0000E50B, 0x0000DF2F, 0x0000E69B, 0x0000E5D3, 0x0000E5D3, 0x0000E50B, 0x0000DF93},
-     {0x0000DE03, 0x0000E123, 0x0000DFF7, 0x0000E24F, 0x0000E56F, 0x0000F0C3, 0x0000DF93, 0x0000F37F, 0x0000DD3B, 0x0000E123, 0x0000DECB, 0x0000DFF7, 0x0000F37F, 0x0000E123, 0x0000DD3B, 0x0000DF93, 0x0000DF2F, 0x0000E50B, 0x0000DFF7, 0x0000F31B, 0x00000000}},
-    {{0x0000DF93, 0x0000E2B3, 0x0000E69B, 0x0000DF2F, 0x0000E637, 0x0000E123, 0x0000DFF7, 0x0000E56F},
-     {0x0000E637, 0x0000E123, 0x0000E69B, 0x0000DFF7, 0x0000E56F, 0x0000E50B, 0x0000DFF7, 0x0000F37F, 0x0000DFF7, 0x0000DECB, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E3DF, 0x0000E123, 0x0000DFF7, 0x0000E1EB, 0x0000E123, 0x0000E187, 0x0000E50B, 0x0000DF93},
-     {0x0000DD3B, 0x0000E123, 0x0000DECB, 0x0000F37F, 0x0000E24F, 0x0000E123, 0x0000E123, 0x0000E2B3, 0x0000F37F, 0x0000DF93, 0x0000E123, 0x0000F37F, 0x0000E3DF, 0x0000E50B, 0x0000E69B, 0x0000E24F, 0x0000DF2F, 0x0000E3DF, 0x0000DD3B, 0x0000F31B, 0x00000000}},
-    {{0x0000E37B, 0x0000E1EB, 0x0000E1EB, 0x0000E123, 0x0000DFF7, 0x0000DF2F, 0x0000E69B, 0x0000E24F},
-     {0x0000E24F, 0x0000E37B, 0x0000E4A7, 0x0000E50B, 0x0000F37F, 0x0000E123, 0x0000E4A7, 0x0000F37F, 0x0000DF2F, 0x0000E3DF, 0x0000E50B, 0x0000F37F, 0x0000E0BF, 0x0000E69B, 0x0000DFF7, 0x0000DF2F, 0x0000DD3B, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E1EB, 0x0000E69B, 0x0000E2B3, 0x0000E1EB, 0x0000DD3B, 0x0000E56F, 0x0000E69B, 0x0000DD3B},
-     {0x0000E0BF, 0x0000E50B, 0x0000DFF7, 0x0000E1EB, 0x0000E69B, 0x0000E187, 0x0000E50B, 0x0000E187, 0x0000DF2F, 0x0000F37F, 0x0000DE03, 0x0000E50B, 0x0000E69B, 0x0000E0BF, 0x0000E123, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E187, 0x0000E50B, 0x0000DE67, 0x0000E50B, 0x0000DFF7, 0x0000E56F, 0x0000E37B, 0x0000E50B},
-     {0x0000E5D3, 0x0000E69B, 0x0000E187, 0x0000F0C3, 0x0000DF2F, 0x0000F37F, 0x0000DF2F, 0x0000E123, 0x0000DECB, 0x0000E5D3, 0x0000E3DF, 0x0000F37F, 0x0000DF2F, 0x0000E3DF, 0x0000E37B, 0x0000DF93, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E443, 0x0000E50B, 0x0000E187, 0x0000E50B, 0x0000DF2F, 0x0000E37B, 0x0000E5D3, 0x0000DF93},
-     {0x0000E1EB, 0x0000DECB, 0x0000DF2F, 0x0000E69B, 0x0000E187, 0x0000DF2F, 0x0000F37F, 0x0000E1EB, 0x0000E69B, 0x0000E187, 0x0000E37B, 0x0000E69B, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E443, 0x0000E123, 0x0000E187, 0x0000E69B, 0x0000E3DF, 0x0000DECB, 0x0000DFF7, 0x0000E24F},
-     {0x0000DFF7, 0x0000E123, 0x0000E5D3, 0x0000E2B3, 0x0000F37F, 0x0000F0C3, 0x0000E187, 0x0000F0C3, 0x0000F37F, 0x0000DFF7, 0x0000E123, 0x0000E24F, 0x0000E24F, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E317, 0x0000DECB, 0x0000DF93, 0x0000DF2F, 0x0000E2B3, 0x0000E37B, 0x0000E56F, 0x0000E187},
-     {0x0000E37B, 0x0000E1EB, 0x0000E1EB, 0x0000E123, 0x0000DFF7, 0x0000DF2F, 0x0000E69B, 0x0000E24F, 0x0000F37F, 0x0000E50B, 0x0000E187, 0x0000E50B, 0x0000E1EB, 0x0000E37B, 0x0000E50B, 0x0000DF93, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E443, 0x0000E05B, 0x0000E37B, 0x0000DF93, 0x0000E4A7, 0x0000DECB, 0x0000E187, 0x0000DD9F},
-     {0x0000E443, 0x0000E123, 0x0000E123, 0x0000E187, 0x0000F37F, 0x0000E05B, 0x0000DECB, 0x0000E50B, 0x0000E50B, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
-    {{0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B},
-     {0x0000E50B, 0x0000E187, 0x0000DF2F, 0x0000E50B, 0x0000DFF7, 0x0000F37F, 0x0000E0BF, 0x0000E69B, 0x0000DF93, 0x0000DF93, 0x0000DE03, 0x0000E123, 0x0000DFF7, 0x0000E56F, 0x0000F37F, 0x0000E4A7, 0x0000E37B, 0x0000DFF7, 0x0000DF93, 0x0000DF2F, 0x00000000}},
-    {{0x0000E69B, 0x0000E5D3, 0x0000E37B, 0x0000E56F, 0x0000E56F, 0x0000DECB, 0x0000E56F, 0x0000E50B},
-     {0x0000E637, 0x0000E37B, 0x0000DCD7, 0x0000DCD7, 0x0000E69B, 0x0000DFF7, 0x0000E50B, 0x0000F37F, 0x0000E24F, 0x0000E69B, 0x0000E187, 0x0000E56F, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}}
-};
+static const CheatRecord cheats[12] = {{{0x0000E443, 0x0000E50B, 0x0000DF2F, 0x0000E69B, 0x0000E5D3, 0x0000E5D3, 0x0000E50B, 0x0000DF93}, {0x0000DE03, 0x0000E123, 0x0000DFF7, 0x0000E24F, 0x0000E56F, 0x0000F0C3, 0x0000DF93, 0x0000F37F, 0x0000DD3B, 0x0000E123, 0x0000DECB, 0x0000DFF7, 0x0000F37F, 0x0000E123, 0x0000DD3B, 0x0000DF93, 0x0000DF2F, 0x0000E50B, 0x0000DFF7, 0x0000F31B, 0x00000000}}, {{0x0000DF93, 0x0000E2B3, 0x0000E69B, 0x0000DF2F, 0x0000E637, 0x0000E123, 0x0000DFF7, 0x0000E56F}, {0x0000E637, 0x0000E123, 0x0000E69B, 0x0000DFF7, 0x0000E56F, 0x0000E50B, 0x0000DFF7, 0x0000F37F, 0x0000DFF7, 0x0000DECB, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
+                                       {{0x0000E3DF, 0x0000E123, 0x0000DFF7, 0x0000E1EB, 0x0000E123, 0x0000E187, 0x0000E50B, 0x0000DF93}, {0x0000DD3B, 0x0000E123, 0x0000DECB, 0x0000F37F, 0x0000E24F, 0x0000E123, 0x0000E123, 0x0000E2B3, 0x0000F37F, 0x0000DF93, 0x0000E123, 0x0000F37F, 0x0000E3DF, 0x0000E50B, 0x0000E69B, 0x0000E24F, 0x0000DF2F, 0x0000E3DF, 0x0000DD3B, 0x0000F31B, 0x00000000}}, {{0x0000E37B, 0x0000E1EB, 0x0000E1EB, 0x0000E123, 0x0000DFF7, 0x0000DF2F, 0x0000E69B, 0x0000E24F}, {0x0000E24F, 0x0000E37B, 0x0000E4A7, 0x0000E50B, 0x0000F37F, 0x0000E123, 0x0000E4A7, 0x0000F37F, 0x0000DF2F, 0x0000E3DF, 0x0000E50B, 0x0000F37F, 0x0000E0BF, 0x0000E69B, 0x0000DFF7, 0x0000DF2F, 0x0000DD3B, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x00000000}},
+                                       {{0x0000E1EB, 0x0000E69B, 0x0000E2B3, 0x0000E1EB, 0x0000DD3B, 0x0000E56F, 0x0000E69B, 0x0000DD3B}, {0x0000E0BF, 0x0000E50B, 0x0000DFF7, 0x0000E1EB, 0x0000E69B, 0x0000E187, 0x0000E50B, 0x0000E187, 0x0000DF2F, 0x0000F37F, 0x0000DE03, 0x0000E50B, 0x0000E69B, 0x0000E0BF, 0x0000E123, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}}, {{0x0000E187, 0x0000E50B, 0x0000DE67, 0x0000E50B, 0x0000DFF7, 0x0000E56F, 0x0000E37B, 0x0000E50B}, {0x0000E5D3, 0x0000E69B, 0x0000E187, 0x0000F0C3, 0x0000DF2F, 0x0000F37F, 0x0000DF2F, 0x0000E123, 0x0000DECB, 0x0000E5D3, 0x0000E3DF, 0x0000F37F, 0x0000DF2F, 0x0000E3DF, 0x0000E37B, 0x0000DF93, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
+                                       {{0x0000E443, 0x0000E50B, 0x0000E187, 0x0000E50B, 0x0000DF2F, 0x0000E37B, 0x0000E5D3, 0x0000DF93}, {0x0000E1EB, 0x0000DECB, 0x0000DF2F, 0x0000E69B, 0x0000E187, 0x0000DF2F, 0x0000F37F, 0x0000E1EB, 0x0000E69B, 0x0000E187, 0x0000E37B, 0x0000E69B, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}}, {{0x0000E443, 0x0000E123, 0x0000E187, 0x0000E69B, 0x0000E3DF, 0x0000DECB, 0x0000DFF7, 0x0000E24F}, {0x0000DFF7, 0x0000E123, 0x0000E5D3, 0x0000E2B3, 0x0000F37F, 0x0000F0C3, 0x0000E187, 0x0000F0C3, 0x0000F37F, 0x0000DFF7, 0x0000E123, 0x0000E24F, 0x0000E24F, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
+                                       {{0x0000E317, 0x0000DECB, 0x0000DF93, 0x0000DF2F, 0x0000E2B3, 0x0000E37B, 0x0000E56F, 0x0000E187}, {0x0000E37B, 0x0000E1EB, 0x0000E1EB, 0x0000E123, 0x0000DFF7, 0x0000DF2F, 0x0000E69B, 0x0000E24F, 0x0000F37F, 0x0000E50B, 0x0000E187, 0x0000E50B, 0x0000E1EB, 0x0000E37B, 0x0000E50B, 0x0000DF93, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}}, {{0x0000E443, 0x0000E05B, 0x0000E37B, 0x0000DF93, 0x0000E4A7, 0x0000DECB, 0x0000E187, 0x0000DD9F}, {0x0000E443, 0x0000E123, 0x0000E123, 0x0000E187, 0x0000F37F, 0x0000E05B, 0x0000DECB, 0x0000E50B, 0x0000E50B, 0x0000E187, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}},
+                                       {{0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B, 0x0000E69B}, {0x0000E50B, 0x0000E187, 0x0000DF2F, 0x0000E50B, 0x0000DFF7, 0x0000F37F, 0x0000E0BF, 0x0000E69B, 0x0000DF93, 0x0000DF93, 0x0000DE03, 0x0000E123, 0x0000DFF7, 0x0000E56F, 0x0000F37F, 0x0000E4A7, 0x0000E37B, 0x0000DFF7, 0x0000DF93, 0x0000DF2F, 0x00000000}}, {{0x0000E69B, 0x0000E5D3, 0x0000E37B, 0x0000E56F, 0x0000E56F, 0x0000DECB, 0x0000E56F, 0x0000E50B}, {0x0000E637, 0x0000E37B, 0x0000DCD7, 0x0000DCD7, 0x0000E69B, 0x0000DFF7, 0x0000E50B, 0x0000F37F, 0x0000E24F, 0x0000E69B, 0x0000E187, 0x0000E56F, 0x0000F31B, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x0000F37F, 0x00000000}}};
 
 uint32 DrawPassword(uint32 x, uint32 y, sint8 interactive)
 {
     TextureDescriptor *texture;
     uint32 *entries;
-    uint32 group;
+    TextureDescriptor *group;
     uint32 encoded;
-    uint32 glyphs;
+    const uint8 *glyphs;
     uint32 position;
     uint32 index;
-    uint32 source;
+    const uint8 *source;
     uint32 words[2];
     sint32 amplitude;
     FUNCTION_MARKER(0x8006B0E0, "SLUS_005.78");
     entries = resource_groups[3].animation_entries;
     encoded = (uint8)entries[-1];
-    group = resource_groups[3].material_offset;
+    group = resource_groups[3].texture;
     encoded = entries[encoded - 1];
-    glyphs = material_registry.records[(encoded >> 1) & 0x1FF].data_offset;
+    glyphs = material_registry.records[(encoded >> 1) & 0x1FF].data;
     if (interactive == 0)
-        p2_func_800652e4((x + 2) | ((y - 1) << 16), 0x140078, 4096, 0x800080);
+        DrawBrightenRectangle((x + 2) | ((y - 1) << 16), 0x140078, 4096, 0x800080);
     x += 4;
     y += 2;
     position = x + (y << 16);
     for (index = 0; index < 8; ++index)
     {
         source = glyphs + 8 * menu_state.password.characters[index];
-        words[0] = r_u32(source + 264);
-        words[1] = r_u32(source + 268);
-        texture = (TextureDescriptor *)psx_addr(group, sizeof(TextureDescriptor));
+        words[0] = xport_load_le32(source + 264);
+        words[1] = xport_load_le32(source + 268);
+        texture = group;
         texture->payload.words[0] = words[0];
         texture->payload.words[1] = words[1];
         if (group != 0)
@@ -86,9 +70,9 @@ uint32 DrawPassword(uint32 x, uint32 y, sint8 interactive)
                 amplitude = (sint32)menu_state.highlight_phase;
             }
             if (amplitude > 0)
-                p2_func_800652e4(position - 65537, 0x10000E, amplitude, 0x808080);
+                DrawBrightenRectangle(position - 65537, 0x10000E, amplitude, 0x808080);
             else if (amplitude < 0)
-                p2_func_800651bc(position - 65537, 0x10000E, (sint32)(0 - (uint32)amplitude), 0x808080);
+                DrawOverlayRectangle(position - 65537, 0x10000E, (sint32)(0 - (uint32)amplitude), 0x808080);
         }
         position += 15;
         x += 15;
@@ -98,10 +82,10 @@ uint32 DrawPassword(uint32 x, uint32 y, sint8 interactive)
 
 uint32 DrawPasswordScreen(sint32 requested_mode, uint32 invalid, uint32 accepted)
 {
-    MaterialResourceHeader *resources;
+    const MenuMaterialResources *resources;
     sint8 mode = (sint8)requested_mode;
     const char *text;
-    uint32 group;
+    const TextureDescriptor *group;
     uint32 saved_frame;
     uint32 count;
     uint32 index;
@@ -113,13 +97,13 @@ uint32 DrawPasswordScreen(sint32 requested_mode, uint32 invalid, uint32 accepted
     BeginDraw();
     ClearSceneOrderingTable();
     if (mode == 0)
-        p2_func_80066bdc(0, 0xF00140, 0);
+        DrawBackgroundRectangle(0, 0xF00140, 0);
     else
-        p2_func_80066af0(0);
+        RestoreMenuImage(0);
     DrawPassword(97, 110, mode);
     if ((uint8)invalid != 0 || (uint8)accepted != 0)
     {
-        p2_func_800651bc(0xBE0000, 0x150140, 4096, 0xFFFFFF);
+        DrawOverlayRectangle(0xBE0000, 0x150140, 4096, 0xFFFFFF);
         text = (uint8)invalid != 0 ? UiText::InvalidPassword : menu_state.password.feedback;
         DrawText(0xC300A0, text, 1, 0);
     }
@@ -127,17 +111,17 @@ uint32 DrawPasswordScreen(sint32 requested_mode, uint32 invalid, uint32 accepted
     {
         DrawText(0x4600A0, UiText::Password, 1, 0);
         DrawText(0xD20064, UiText::Continue, 0, 0);
-        DrawTexturedQuad(0xC80041, 0, interface_resources->textures_offset + 220, 0);
+        DrawTexturedQuad(0xC80041, 0, interface_resources->textures + 11, 0);
     }
-    group = menu_state.resources->textures_offset + 20;
+    group = menu_state.resources->textures + 1;
     if (group != 0)
         DrawTexturedQuad(0x2700E4, 0, group, 0);
-    p2_func_80027228();
+    UpdateResourceMaterialAnimations();
     resources = menu_state.resources;
     if (resources != 0)
     {
         saved_frame = frame_clock.render_tick;
-        count = resources->texture_count;
+        count = resources->header.texture_count;
         frame_clock.render_tick = frame_clock.menu_tick;
         if ((sint32)count > 0)
         {
@@ -146,7 +130,7 @@ uint32 DrawPasswordScreen(sint32 requested_mode, uint32 invalid, uint32 accepted
             {
                 UpdateMaterialAnimationList(menu_state.material_groups[index].animation_entries);
                 ++index;
-            } while ((sint32)index < (sint32)menu_state.resources->texture_count);
+            } while ((sint32)index < (sint32)menu_state.resources->header.texture_count);
         }
         frame_clock.render_tick = saved_frame;
     }
@@ -156,7 +140,7 @@ uint32 DrawPasswordScreen(sint32 requested_mode, uint32 invalid, uint32 accepted
         --fade;
         menu_state.fade_frames = fade;
         if (fade != 0)
-            p2_func_800651bc(0, 0xF00140, (sint32)(fade << 12) / 15, 0xFFFFFF);
+            DrawOverlayRectangle(0, 0xF00140, (sint32)(fade << 12) / 15, 0xFFFFFF);
     }
     EndDraw();
     result = menu_state.pacer.Wait(menu_state.last_frame);
@@ -170,7 +154,7 @@ uint32 GeneratePassword(void)
     CharacterSettings settings;
     uint32 rotation, checkpoints, level, lives, pair, single, triple, checksum;
     uint32 bits, index, mask, value, result = 0;
-    p2_func_800536f0(0);
+    FindPlayerObject(0);
     CaptureCharacterSettings(&settings);
     value = settings.counters[CharacterSettings::Lives] - 1u;
     settings.counters[CharacterSettings::Lives] = value;
@@ -178,9 +162,9 @@ uint32 GeneratePassword(void)
         settings.counters[CharacterSettings::Lives] = 2;
     settings.health_limit = settings.health_limit - 1u;
     rotation = random_generator.Next() & 3;
-    checkpoints = r_u8(0x800B999A);
-    if (p2_func_8002dfc8(78, 1) < (sint32)checkpoints)
-        checkpoints = (uint32)(sint32)r_s8(0x8008A43C);
+    checkpoints = game_flow.progress.unlocked_stage;
+    if (MapLevelProgression(78, 1) < (sint32)checkpoints)
+        checkpoints = (uint32)(sint32)(sint8)game_flow.progress.selected_stage;
     bits = 0;
     for (index = 0; index < 5; ++index)
         if ((checkpoints & (1u << index)) != 0)
@@ -254,7 +238,7 @@ sint32 ApplyCheatPassword(void)
         return 0;
     bit = 1u << row;
     if (bit == 1)
-        w_u8(0x800B999A, p2_func_8002dfc8(78, 1));
+        game_flow.progress.unlocked_stage = MapLevelProgression(78, 1);
     else if (bit == 32)
         game_flow.transition_flags = game_flow.transition_flags & ~0x10000u;
     else
@@ -294,11 +278,12 @@ uint32 EditPassword(uint32 requested_mode)
     uint32 error_until = 0;
     uint32 pressed;
     uint32 buttons;
-    uint32 sound;
+    const SoundSample *sound;
+    const SoundBankStorage *sound_table;
     uint32 saved_frame;
     uint32 cursor;
     uint32 clock;
-    uint32 offset;
+
     uint32 encoded;
     uint32 power;
     uint32 rotation;
@@ -309,7 +294,6 @@ uint32 EditPassword(uint32 requested_mode)
     uint32 field;
     uint32 bit;
     uint32 aligned;
-    uint32 scene;
     sint32 digit;
     sint32 voice;
     sint32 checked;
@@ -318,7 +302,7 @@ uint32 EditPassword(uint32 requested_mode)
     FUNCTION_MARKER(0x8006BBE8, "SLUS_005.78");
     if (mode != 0)
     {
-        p2_func_80067160(0);
+        FadeMenuImage(0);
         menu_state.fade_frames = 15;
         menu_state.password.cursor = (uint8)(0);
         if (menu_state.password.reset_pending)
@@ -337,39 +321,46 @@ uint32 EditPassword(uint32 requested_mode)
         pressed = 0;
         if (success_until == 0 && error_until == 0)
         {
-            buttons = p2_func_80066d08();
+            buttons = ReadGamepadButtons();
             {
                 uint32 old_buttons = menu_state.previous_buttons;
                 uint32 repeat;
-                if (buttons & 0x1000) ++menu_state.up_hold_frames;
-                else menu_state.up_hold_frames = 0;
-                if (buttons & 0x4000) ++menu_state.down_hold_frames;
-                else menu_state.down_hold_frames = 0;
+                if (buttons & 0x1000)
+                    ++menu_state.up_hold_frames;
+                else
+                    menu_state.up_hold_frames = 0;
+                if (buttons & 0x4000)
+                    ++menu_state.down_hold_frames;
+                else
+                    menu_state.down_hold_frames = 0;
                 pressed = buttons & ~old_buttons;
                 menu_state.previous_buttons = buttons;
                 repeat = menu_state.up_hold_frames;
-                if ((sint32)repeat >= 11 && (repeat & 3) == 0) pressed |= 0x1000;
+                if ((sint32)repeat >= 11 && (repeat & 3) == 0)
+                    pressed |= 0x1000;
                 repeat = menu_state.down_hold_frames;
-                if ((sint32)repeat >= 11 && (repeat & 3) == 0) pressed |= 0x4000;
+                if ((sint32)repeat >= 11 && (repeat & 3) == 0)
+                    pressed |= 0x4000;
             }
         }
         if ((sint8)mode != 0)
-            p2_func_80066de4(256);
+            LoadMenuImage(256);
         DrawPasswordScreen((sint8)mode, error_until != 0, success_until != 0);
         if (pressed & 0x10)
         {
             sound = 0;
             saved_frame = frame_clock.render_tick;
-            if (r_u32(0x8008A408) != 0 && r_s32(r_u32(0x8008A408)) > 25)
-                sound = r_u32(0x8008A408) + 204;
+            sound_table = sound_resources.common_table;
+            if (sound_table != 0 && (sint32)sound_table->header.count > 25)
+                sound = sound_table->samples + 25;
             frame_clock.render_tick = frame_clock.menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
-                p2_func_8005e470(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
+                PlaySoundEffect(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
             frame_clock.render_tick = saved_frame;
             if (mode != 0)
             {
-                p2_func_80067160(0);
+                FadeMenuImage(0);
                 menu_state.fade_frames = 15;
             }
             return 0;
@@ -381,12 +372,13 @@ uint32 EditPassword(uint32 requested_mode)
                 sound = 0;
                 saved_frame = frame_clock.render_tick;
                 digit = menu_state.password.characters[menu_state.password.cursor];
-                if (r_u32(0x8008A408) != 0 && r_s32(r_u32(0x8008A408)) > 24)
-                    sound = r_u32(0x8008A408) + 196;
+                sound_table = sound_resources.common_table;
+                if (sound_table != 0 && (sint32)sound_table->header.count > 24)
+                    sound = sound_table->samples + 24;
                 frame_clock.render_tick = frame_clock.menu_tick;
                 voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
                 if (voice >= 0)
-                    p2_func_8005e470(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
+                    PlaySoundEffect(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
                 frame_clock.render_tick = saved_frame;
                 if ((pressed ^ 0x5000) & 0x3000)
                 {
@@ -410,12 +402,13 @@ uint32 EditPassword(uint32 requested_mode)
             {
                 sound = 0;
                 saved_frame = frame_clock.render_tick;
-                if (r_u32(0x8008A408) != 0 && r_s32(r_u32(0x8008A408)) > 24)
-                    sound = r_u32(0x8008A408) + 196;
+                sound_table = sound_resources.common_table;
+                if (sound_table != 0 && (sint32)sound_table->header.count > 24)
+                    sound = sound_table->samples + 24;
                 frame_clock.render_tick = frame_clock.menu_tick;
                 voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
                 if (voice >= 0)
-                    p2_func_8005e470(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
+                    PlaySoundEffect(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
                 frame_clock.render_tick = saved_frame;
                 if (pressed & 0x2000)
                 {
@@ -438,12 +431,13 @@ uint32 EditPassword(uint32 requested_mode)
             goto finish_iteration;
         sound = 0;
         saved_frame = frame_clock.render_tick;
-        if (r_u32(0x8008A408) != 0 && r_s32(r_u32(0x8008A408)) > 25)
-            sound = r_u32(0x8008A408) + 204;
+        sound_table = sound_resources.common_table;
+        if (sound_table != 0 && (sint32)sound_table->header.count > 25)
+            sound = sound_table->samples + 25;
         frame_clock.render_tick = frame_clock.menu_tick;
         voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
         if (voice >= 0)
-            p2_func_8005e470(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
+            PlaySoundEffect(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
         frame_clock.render_tick = saved_frame;
         if ((sint8)mode == 0)
             goto finish_iteration;
@@ -459,18 +453,56 @@ uint32 EditPassword(uint32 requested_mode)
                 if ((game_flow.mode_flags & 0x200) == 0)
                     goto expire_messages;
                 DrawPasswordScreen(1, 0, 1);
-                p2_func_80066430();
-                if (r_u16(0x8008A530) != 0)
-                    p2_func_8006ae90(r_u16(0x8008A530));
-                w_u16(0x8008A530, 0);
-                offset = resource_archive.Size(47);
-                w_u32(0x8008A4DC, r_u32(0x8008A284) + offset + 132576);
-                w_u32(0x8008A488, ReadAssetToGuest(47, r_u32(0x8008A284) + 132576, 1));
-                ReadAssetToGuest(147, r_u32(0x8008A4C8), 1);
-                p2_func_8006624c(r_u32(0x8008A4C8), 0, 1);
-                p2_func_80060eec();
-                p2_func_80060df4();
-                p2_func_80066e48();
+                StopCurrentSequence();
+                if (sequence_playback.current_handle != 0)
+                    CloseSequence(sequence_playback.current_handle);
+                sequence_playback.current_handle = 0;
+                resource_load_cursor.container_asset = 47;
+                {
+                    uint32 atlas_bytes = resource_archive.Size(147);
+                    uint32 atlas_capacity;
+                    uint8 *atlas;
+                    if (atlas_bytes == 0 || atlas_bytes > 0xFFFFF800u)
+                    {
+                        fprintf(stderr, "P2: Invalid password atlas size %u\n", atlas_bytes);
+                        abort();
+                    }
+                    atlas_capacity = (atlas_bytes + 2047u) & ~2047u;
+                    atlas = (uint8 *)malloc(atlas_capacity);
+                    if (atlas == NULL)
+                    {
+                        fprintf(stderr, "P2: Cannot allocate password atlas\n");
+                        abort();
+                    }
+                    resource_archive.ReadAsset(147, atlas, 1);
+                    uint32 image_index = 0;
+                    uint32 image_bytes = (uint32)OriginalDefaults::TextureImageRects[image_index].w * (uint32)OriginalDefaults::TextureImageRects[image_index].h * 2;
+                    if (image_index == 0)
+                    {
+                        uint32 second_offset = resource_archive.Offset(252);
+                        uint32 second_image_bytes = (uint32)OriginalDefaults::TextureImageRects[8].w * (uint32)OriginalDefaults::TextureImageRects[8].h * 2;
+                        if (second_offset > atlas_bytes || second_image_bytes > atlas_bytes - second_offset)
+                        {
+                            fprintf(stderr, "P2: Password atlas secondary image is outside resource\n");
+                            free(atlas);
+                            abort();
+                        }
+                        second_image_bytes += second_offset;
+                        if (image_bytes < second_image_bytes)
+                            image_bytes = second_image_bytes;
+                    }
+                    if (image_bytes > atlas_bytes)
+                    {
+                        fprintf(stderr, "P2: Password atlas images exceed resource size\n");
+                        free(atlas);
+                        abort();
+                    }
+                    UploadTextureImage(atlas, image_index, 1);
+                    free(atlas);
+                }
+                ResetSceneRendering();
+                LoadCommonGameResources();
+                ReloadMenuArchive();
                 LoadMenuResources();
             }
             goto finish_iteration;
@@ -510,16 +542,15 @@ uint32 EditPassword(uint32 requested_mode)
         settings.counters[CharacterSettings::Lives] = decoded[1];
         settings.action_code = (uint8)decoded[3];
         settings.health_pickups = (uint8)decoded[5];
-        if (decoded[6] != 0 && decoded[6] == checksum && (sint32)decoded[0] >= 0 && p2_func_8002dfc8(78, 1) >= (sint32)decoded[0] && decoded[1] < 32 && decoded[2] < 32 && decoded[3] < 4 && decoded[4] < 2 && decoded[5] < 8)
+        if (decoded[6] != 0 && decoded[6] == checksum && (sint32)decoded[0] >= 0 && MapLevelProgression(78, 1) >= (sint32)decoded[0] && decoded[1] < 32 && decoded[2] < 32 && decoded[3] < 4 && decoded[4] < 2 && decoded[5] < 8)
         {
             ++decoded[1];
             ++decoded[2];
             settings.counters[CharacterSettings::Lives] = decoded[1];
             settings.health_limit = (uint8)decoded[2];
-            scene = p2_func_800536f0(0);
-            ApplyCharacterSettings(scene, &settings, (uint8)decoded[0]);
-            w_u8(0x8008A134, 0);
-            w_u8(0x8008A43C, decoded[0]);
+            ApplyCharacterSettings(FindPlayerObject(0), &settings, (uint8)decoded[0]);
+            game_flow.requested_level = 0;
+            game_flow.progress.selected_stage = decoded[0];
             ReloadBaseCharacterModels((settings.flags & 1) != 0 ? 2 : 1);
             return 1;
         }
@@ -528,8 +559,7 @@ uint32 EditPassword(uint32 requested_mode)
             settings.counters[CharacterSettings::Lives] = decoded[3];
             settings.health_limit = 3;
             settings.action_code = 0;
-            scene = p2_func_800536f0(0);
-            ApplyCharacterSettings(scene, &settings, 0);
+            ApplyCharacterSettings(FindPlayerObject(0), &settings, 0);
         }
         else
             error_until = menu_state.last_frame + 3000;

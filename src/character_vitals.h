@@ -5,7 +5,13 @@
 
 struct CharacterSettings
 {
-    enum Counter { Score, Health, Lives };
+    enum Counter
+    {
+        Score,
+        Health,
+        Lives
+    };
+
     uint8 flags;
     uint8 health_limit;
     uint32 counters[3];
@@ -21,7 +27,7 @@ struct CharacterVitals
     unsigned int score;
     unsigned short damage_ticks;
     unsigned char health_pickups;
+    uint8 damage_amount;
 };
-
 
 #endif

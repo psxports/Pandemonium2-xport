@@ -1,16 +1,22 @@
 #ifndef OBJECT_OPERATIONS_H
 #define OBJECT_OPERATIONS_H
 #include "collision_contact.h"
+#include "animated_object.h"
+
 struct ObjectCallback
 {
-    typedef unsigned int (*ValueHandler)(unsigned int);
-    typedef void (*VoidHandler)(unsigned int);
     typedef void (*PlainHandler)();
-    ValueHandler value_handler;
-    VoidHandler void_handler;
+    typedef unsigned int (AnimatedObject::*MemberHandler)();
+    typedef AnimatedObject *(*FactoryHandler)(AnimatedObject *);
+    typedef void (AnimatedObject::*VoidMemberHandler)();
     PlainHandler plain_handler;
+    MemberHandler member_handler;
+    FactoryHandler factory_handler;
+    VoidMemberHandler void_member_handler;
 };
-typedef unsigned int (*CollisionHandler)(unsigned int, unsigned int, CollisionContact *);
+
+typedef unsigned int (AnimatedObject::*CollisionHandler)(SceneNode *, CollisionContact *);
+
 struct ObjectOperations
 {
     ObjectCallback behaviors[34];
@@ -18,6 +24,6 @@ struct ObjectOperations
     ObjectCallback variants[5];
     CollisionHandler collisions[5];
 };
+
 extern ObjectOperations object_operations;
-ObjectCallback::ValueHandler DecodeObjectFactory(unsigned int original_address);
 #endif

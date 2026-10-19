@@ -3,27 +3,56 @@
 
 #include <stddef.h>
 
+#include "psx.h"
+
+struct SceneNode;
+struct SpriteRecord;
+struct AnimatedObject;
+
 struct ObjectLinks
 {
-    unsigned int registry_next;
-    unsigned int sibling_next;
-    unsigned int first_child;
+    union
+    {
+        SceneNode *registry_next;
+        uint32 source_registry_word;
+    };
 
-    unsigned int DetachChild(unsigned int object_offset);
+    SceneNode *sibling_next;
+    SceneNode *first_child;
+
+    void DetachChild(SceneNode *object);
+    void UpdateGraph(AnimatedObject *parent, uint32 mode);
 };
 
 typedef char ObjectLinksSize[(sizeof(ObjectLinks) == 12) ? 1 : -1];
 typedef char ObjectLinksSiblingOffset[(offsetof(ObjectLinks, sibling_next) == 4) ? 1 : -1];
 typedef char ObjectLinksChildOffset[(offsetof(ObjectLinks, first_child) == 8) ? 1 : -1];
 
+// Own pooled material playback separately from borrowed graph records
+struct SpritePoolEntry
+{
+    SceneNode *node;
+    uint32 animation_words[4];
+};
+
 struct SpritePoolState
 {
-    unsigned int first;
-    unsigned int free_head;
-    unsigned int active_head;
+    enum
+    {
+        EntryCount = 100,
+        AnimationCapacity = 3
+    };
+
+    SceneNode *first;
+    SceneNode *free_head;
+    SceneNode *active_head;
+    SpriteRecord *records;
+    SpritePoolEntry entries[EntryCount];
 };
 
 extern SpritePoolState sprite_pool;
-extern unsigned int registered_object_head;
+extern SceneNode *registered_object_head;
+
+struct SceneNode;
 
 #endif

@@ -1,16 +1,20 @@
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "game.h"
+#include "original_defaults.h"
 
 LevelLoader level_loader = {0};
 
-uint32 LoadLevel(sint32 level, uint32 mode)
+uint32 LoadLevel(sint32 level)
 {
     uint32 player;
     uint32 previous;
-    uint32 saved_stack = p2_guest_stack_pointer;
-    uint32 camera_offset;
+    CharacterPreview preview;
     FramePacer pacer = {30};
     uint32 result;
-    uint32 sprite;
+    const TextureDescriptor *sprite;
     uint32 position;
     uint32 first_x;
     uint32 first_y;
@@ -18,54 +22,51 @@ uint32 LoadLevel(sint32 level, uint32 mode)
     uint32 last_y;
     uint32 copy;
     FUNCTION_MARKER(0x8002DCD0, "SLUS_005.78");
-    p2_guest_stack_pointer -= 0x58;
-    camera_offset = p2_guest_stack_pointer + 0x10;
     ResetHud();
     ResetCutsceneCameras();
     InitializeContactPool();
-    player = r_u32(0x8008A114);
-    w_u32(0x8008A4F4, 0);
-    w_u8(player + 74, 0);
-    w_u8(player + 73, 0);
-    w_u8(player + 72, 0);
+    player = OriginalDefaults::SceneContextIdentity;
+    camera_motion.target_ticks = 0;
+    camera_motion.smooth_ticks[2] = (uint8)(0);
+    camera_motion.smooth_ticks[1] = (uint8)(0);
+    camera_motion.smooth_ticks[0] = (uint8)(0);
     previous = frame_clock.milliseconds;
-    w_u32(camera_offset + 16, (uint32)-4096);
-    w_u32(0x8008A444, 0xFFFFFFFF);
+    preview.velocity[0] = (uint32)-4096;
+    preview_playback.tick = 0xFFFFFFFF;
     player_interaction.flags = 0;
-    player_interaction.target_offset = 0;
-    w_u32(camera_offset + 4, 143360);
-    w_u32(camera_offset + 8, (uint32)-61440);
-    w_u32(camera_offset + 12, 122880);
-    w_u32(camera_offset + 24, 0);
-    w_u32(camera_offset + 20, 0);
-    while ((PollLevelLoad(level, mode) << 24) == 0)
+    player_interaction.target = 0;
+    preview.position[0] = 143360;
+    preview.position[1] = (uint32)-61440;
+    preview.position[2] = 122880;
+    preview.velocity[2] = 0;
+    preview.velocity[1] = 0;
+    while ((PollLevelLoad(level) << 24) == 0)
     {
-        p2_func_80053ca0(camera_offset);
+        preview.Update();
         BeginDraw();
-        p2_func_8006de08(camera_offset);
+        preview.Draw();
         ClearSceneOrderingTable();
-        p2_func_80066bdc(0, 0xF00140, 0);
-        sprite = resource_groups[2].material_offset;
+        DrawBackgroundRectangle(0, 0xF00140, 0);
+        sprite = resource_groups[2].texture;
         for (copy = 0; copy < 2; ++copy)
         {
-            last_x = r_u8(sprite + 6);
-            first_x = r_u8(sprite + 4);
-            last_y = r_u8(sprite + 7);
-            first_y = r_u8(sprite + 5);
+            last_x = sprite->payload.bytes[2];
+            first_x = sprite->payload.bytes[0];
+            last_y = sprite->payload.bytes[3];
+            first_y = sprite->payload.bytes[1];
             position = (uint32)((319 - ((sint32)last_x - (sint32)first_x)) >> 1);
             position |= (uint32)((239 - ((sint32)last_y - (sint32)first_y)) >> 1) << 16;
             DrawTexturedQuad(position, 0, sprite, 0);
         }
-        p2_func_80027228();
+        UpdateResourceMaterialAnimations();
         EndDraw();
         previous = pacer.Wait(previous);
     }
-    result = ActivateSceneSection(mode);
-    p2_guest_stack_pointer = saved_stack;
+    result = ActivateSceneSection();
     return result;
 }
 
-uint32 PollLevelLoad(sint32 level, uint32 mode)
+uint32 PollLevelLoad(sint32 level)
 {
     FUNCTION_MARKER(0x8002D7F8, "SLUS_005.78");
     const LevelDefinition *table;
@@ -75,13 +76,13 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
     uint32 other;
     uint32 destination;
     uint32 bytes;
-    uint32 base;
-    uint32 capacity;
-    uint32 loaded;
+    uint32 header_bytes;
+    uint8 *header_input;
     uint32 index;
-    uint32 offset;
     LevelResource *resource;
-    uint32 flags;
+    const uint8 *prefix;
+    const uint8 *section_data;
+    SectionDefinition *section;
     sint32 state;
     state = level_loader.phase;
     switch (state)
@@ -91,12 +92,11 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
                 ;
             if (level == 0)
             {
-                w_u32(0x8008A130, 0);
-                flags = r_u32(0x1F800388 + 4 * mode);
-                w_u32(0x1F800388 + 4 * mode, flags | 0x40);
+                game_flow.progress.hub_spawn_consumed = 0;
+                gameplay_input.prev_buttons |= 0x40;
             }
             else if ((game_flow.transition_flags & 2) == 0 && (uint32)level - 96 >= 2)
-                w_u8(0x8008A43C, (uint8)p2_func_8002dfc8((uint32)level, 1));
+                game_flow.progress.selected_stage = (uint8)MapLevelProgression((uint32)level, 1);
             sound_effects.Stop(1);
             entry = OriginalDefaults::Levels[0].level_id;
             level_loader.definition = OriginalDefaults::Levels;
@@ -113,53 +113,94 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
             if (level_loader.definition->preload_both_characters == 0)
             {
                 active = 2;
-                if (p2_func_80044780() == 0)
+                if (GetCurrentCharacterForm() == 0)
                     active = 1;
             }
-            if (active != r_u32(0x8008A4FC))
+            if (active != character_controller.loaded_model_mask)
             {
                 ReloadBaseCharacterModels(active);
-                w_u32(0x8008A4FC, active);
+                character_controller.loaded_model_mask = active;
             }
-            table = level_loader.definition;
-            base = r_u32(0x8008A424);
-            offset = r_u32(0x800B7A30 + 4 * active);
-            asset = table->resource_asset;
-            w_u32(0x8008A4DC, base + offset);
-            bytes = resource_archive.Size(asset);
-            base = r_u32(0x8008A4DC);
-            capacity = r_u32(0x8008A284);
-            w_u32(0x8008A4E0, base + bytes);
-            w_u32(0x8008A420, capacity - (base + bytes - 1254400));
             ResetSceneStreams();
             table = level_loader.definition;
-            destination = r_u32(0x8008A4DC);
             asset = table->resource_asset;
-            loaded = ReadAssetToGuest(asset, destination, 0);
+            header_bytes = resource_archive.Size(asset + 1);
+            if (header_bytes < 280)
+            {
+                fprintf(stderr, "P2: Truncated level resource header\n");
+                abort();
+            }
+            header_input = (uint8 *)malloc(header_bytes);
+            if (header_input == 0)
+            {
+                fprintf(stderr, "P2: Cannot allocate level resource header\n");
+                abort();
+            }
+            resource_archive.ReadAsset(asset + 1, header_input, 0, asset);
             asset = level_loader.definition->resource_asset;
-            w_u32(0x8008A4E4, loaded);
+            prefix = header_input;
+            for (index = 0; index < 10; ++index)
+            {
+                section = level_resource.sections + index;
+                section_data = prefix + index * 24;
+                section->flags = section_data[0];
+                section->metadata = section_data[1];
+                section->transition_ticks = xport_load_le16(section_data + 2);
+                section->checkpoint = xport_load_le32(section_data + 4);
+                section->origin[0] = xport_load_le32(section_data + 8);
+                section->origin[1] = xport_load_le32(section_data + 12);
+                section->origin[2] = xport_load_le32(section_data + 16);
+                section->metadata_word = xport_load_le32(section_data + 20);
+            }
+            level_resource.asset_base = xport_load_le32(prefix + 240);
+            level_resource.actor_masks[0] = xport_load_le32(prefix + 244);
+            level_resource.actor_masks[1] = xport_load_le32(prefix + 248);
+            level_resource.animated_model_mask = xport_load_le32(prefix + 252);
+            level_resource.model_group_mask = xport_load_le32(prefix + 256);
+            level_resource.character_mask = xport_load_le16(prefix + 260);
+            level_resource.level_id = xport_load_le16(prefix + 262);
+            level_resource.active_sections = prefix[264];
+            level_resource.section_count = prefix[265];
+            level_resource.checkpoint = xport_load_le16(prefix + 266);
+            level_resource.transition_ticks = xport_load_le16(prefix + 268);
+            level_resource.treasure_total = xport_load_le16(prefix + 270);
+            level_resource.collected_total = xport_load_le16(prefix + 272);
+            level_resource.metadata_halfword = xport_load_le16(prefix + 274);
+            level_resource.audio_mode = xport_load_le32(prefix + 276);
+            free(header_input);
             level_loader.phase = 1;
-            ((LevelResource *)psx_addr(loaded, sizeof(LevelResource)))->asset_base = asset;
+            level_resource.asset_base = asset;
             break;
         case 1:
             if (((uint32)resource_archive.Poll() << 24) == 0)
                 break;
             table = level_loader.definition;
-            loaded = r_u32(0x8008A4E4);
             asset = table->sound_asset;
             other = table->resource_asset;
-            w_u32(0x8008A488, loaded);
-            w_u32(0x8008A46C, other + 2);
-            p2_func_8006a530(asset, 1);
-            ((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->LoadAnimatedModels();
-            ((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->LoadModelGroups();
-            ((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->LoadActorModels();
-            ((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->LoadCharacterModels();
-            if (((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->level_id != 0 && (sint32)resource_archive.Size(level_loader.definition->image_asset) > 0)
+            resource_load_cursor.container_asset = other;
+            resource_load_cursor.asset = other + 2;
+            SetSoundTransferAddress(asset, 1);
+            level_resource.LoadAnimatedModels();
+            level_resource.LoadModelGroups();
+            level_resource.LoadActorModels();
+            level_resource.LoadCharacterModels();
+            if (level_resource.level_id != 0 && (sint32)resource_archive.Size(level_loader.definition->image_asset) > 0)
             {
-                destination = GetSceneLoadDestination(mode);
                 asset = level_loader.definition->image_asset;
-                ReadAssetToGuest(asset, destination, 0);
+                level_loader.transfer_bytes = resource_archive.Size(asset);
+                if (level_loader.transfer_bytes > 0xFFFFF800u)
+                {
+                    fprintf(stderr, "P2: Level transfer asset exceeds native capacity\n");
+                    abort();
+                }
+                uint32 transfer_capacity = (level_loader.transfer_bytes + 2047u) & ~2047u;
+                level_loader.transfer_data = (uint8 *)malloc(transfer_capacity != 0 ? transfer_capacity : 1);
+                if (level_loader.transfer_data == 0)
+                {
+                    fprintf(stderr, "P2: Cannot allocate level transfer input\n");
+                    abort();
+                }
+                resource_archive.ReadAsset(asset, level_loader.transfer_data, 0);
                 level_loader.phase = 2;
                 break;
             }
@@ -167,8 +208,22 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
         case 2:
             if (((uint32)resource_archive.Poll() << 24) != 0)
             {
-                destination = GetSceneLoadDestination(mode);
-                p2_func_8006624c(destination, 1, 0);
+                {
+                    uint32 image_index = 1;
+                    uint32 image_bytes = (uint32)OriginalDefaults::TextureImageRects[image_index].w * (uint32)OriginalDefaults::TextureImageRects[image_index].h * 2;
+                    if (image_index == 0)
+                    {
+                        uint32 second_image_bytes = resource_archive.Offset(252) + (uint32)OriginalDefaults::TextureImageRects[8].w * (uint32)OriginalDefaults::TextureImageRects[8].h * 2;
+                        if (image_bytes < second_image_bytes)
+                            image_bytes = second_image_bytes;
+                    }
+                    if (image_bytes > level_loader.transfer_bytes)
+                    {
+                        fprintf(stderr, "P2: Truncated level texture input\n");
+                        abort();
+                    }
+                    UploadTextureImage(level_loader.transfer_data, image_index, 0);
+                }
                 level_loader.phase = 3;
             }
             break;
@@ -176,52 +231,113 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
             if (DrawSync(1) > 0)
                 break;
         load_sound:
-            destination = GetSceneLoadDestination(mode);
+        {
+            free(level_loader.transfer_data);
+            level_loader.transfer_data = 0;
+            level_loader.transfer_bytes = 0;
             asset = level_loader.definition->sound_asset;
-            ReadAssetToGuest(asset, destination, 0);
+            level_loader.transfer_bytes = resource_archive.Size(asset);
+            if (level_loader.transfer_bytes > 0xFFFFF800u)
+            {
+                fprintf(stderr, "P2: Level transfer asset exceeds native capacity\n");
+                abort();
+            }
+            uint32 transfer_capacity = (level_loader.transfer_bytes + 2047u) & ~2047u;
+            level_loader.transfer_data = (uint8 *)malloc(transfer_capacity != 0 ? transfer_capacity : 1);
+            if (level_loader.transfer_data == 0)
+            {
+                fprintf(stderr, "P2: Cannot allocate level transfer input\n");
+                abort();
+            }
+            resource_archive.ReadAsset(asset, level_loader.transfer_data, 0);
             level_loader.phase = 4;
-            break;
+        }
+        break;
         case 4:
             if (((uint32)resource_archive.Poll() << 24) != 0)
             {
-                destination = GetSceneLoadDestination(mode);
                 asset = level_loader.definition->sound_asset;
                 bytes = resource_archive.Size(asset);
-                p2_func_8006aa88(destination, bytes);
+                UploadSoundSamples(level_loader.transfer_data, bytes);
                 level_loader.phase = 5;
             }
             break;
         case 5:
             if (p2_func_8006aaa8() == 0)
                 break;
-            if (((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->level_id == 0)
+            free(level_loader.transfer_data);
+            level_loader.transfer_data = 0;
+            level_loader.transfer_bytes = 0;
+            if (level_resource.level_id == 0)
             {
-                index = r_u32(0x8008A46C);
-                w_u32(0x8008A46C, index + 1);
-                offset = resource_archive.Offset(index);
-                base = r_u32(0x8008A488);
-                world_level_names = (const WorldLevelName *)psx_addr(base + offset, sizeof(WorldLevelName));
+                index = resource_load_cursor.asset;
+                resource_load_cursor.asset = index + 1;
+                uint32 name_bytes = resource_archive.Size(index);
+                if (name_bytes < 40 * LevelResource::WorldNameCount)
+                {
+                    fprintf(stderr, "P2: Truncated world name table\n");
+                    abort();
+                }
+                uint8 *name_input = (uint8 *)malloc(name_bytes);
+                if (name_input == 0)
+                {
+                    fprintf(stderr, "P2: Cannot allocate world name table\n");
+                    abort();
+                }
+                resource_archive.ReadAsset(index, name_input, 1, resource_load_cursor.container_asset);
+                CopyBytes((uint8 *)level_resource.world_names, name_input, 40 * LevelResource::WorldNameCount);
+                free(name_input);
             }
-            if ((sint32)resource_archive.Offset(r_u32(0x8008A46C)) > 0)
+            if ((sint32)resource_archive.Offset(resource_load_cursor.asset) > 0)
             {
-                offset = resource_archive.Offset(r_u32(0x8008A46C));
-                base = r_u32(0x8008A488);
-                loaded = p2_func_8006aa48(base + offset);
-                w_u32(0x8008A460, loaded);
+                uint32 bytes = resource_archive.Size(resource_load_cursor.asset);
+                if (bytes < sizeof(SoundTableHeader))
+                {
+                    fprintf(stderr, "P2: Truncated scene sound table\n");
+                    abort();
+                }
+                uint8 *sound_input = (uint8 *)malloc(bytes);
+                if (sound_input == 0)
+                {
+                    fprintf(stderr, "P2: Cannot allocate native sound table input\n");
+                    abort();
+                }
+                resource_archive.ReadAsset(resource_load_cursor.asset, sound_input, 1, resource_load_cursor.container_asset);
+                const uint8 *source = sound_input;
+                uint32 count = xport_load_le32(source);
+                if ((sint32)count > 0 && (count > SoundBankStorage::SampleCapacity || count > (bytes - sizeof(SoundTableHeader)) / sizeof(SoundSample)))
+                {
+                    fprintf(stderr, "P2: Scene sound samples exceed table capacity\n");
+                    abort();
+                }
+                sound_resources.scene_bank.header.count = count;
+                if ((sint32)count > 0)
+                {
+                    for (uint32 sound_index = 0; sound_index < count; ++sound_index)
+                    {
+                        const uint8 *record = source + sizeof(SoundTableHeader) + sound_index * sizeof(SoundSample);
+                        SoundSample *sample = sound_resources.scene_bank.samples + sound_index;
+                        sample->spu_address = xport_load_le32(record);
+                        sample->pitch = xport_load_le16(record + 4);
+                        sample->metadata = xport_load_le16(record + 6);
+                    }
+                }
+                sound_resources.scene_table = sound_resources.scene_bank.header.Relocate(bytes, sound_resources.scene_bank.samples) != 0 ? &sound_resources.scene_bank : 0;
+                free(sound_input);
             }
             table = level_loader.definition;
-            index = r_u32(0x8008A46C);
-            resource = (LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource));
+            index = resource_load_cursor.asset;
+            resource = &level_resource;
             asset = table->sound_asset;
-            w_u32(0x8008A46C, index + 1);
+            resource_load_cursor.asset = index + 1;
             resource->collected_total = 0;
             resource->active_sections = 0;
             resource->asset_base = asset + 1;
-            p2_func_80066358(0x800B996A, 0, 25);
+            FillBytes(scene_events.script_values + 50, 0, 25);
             destination = 0;
-            if (((const LevelResource *)psx_addr(r_u32(0x8008A4E4), sizeof(LevelResource)))->level_id == 0)
-                destination = r_u32(0x80083CF4 + 4 * (uint32)(sint32)r_s8(0x8008A43C));
-            RequestSceneSection(destination, mode);
+            if (level_resource.level_id == 0)
+                destination = OriginalDefaults::HubSections[(sint8)game_flow.progress.selected_stage];
+            RequestSceneSection(destination);
             level_loader.phase = 6;
             break;
         default:
@@ -232,8 +348,102 @@ uint32 PollLevelLoad(sint32 level, uint32 mode)
     return level_loader.phase == 0;
 }
 
-sint32 PollLevelLoadResult(sint32 level, uint32 mode)
+sint32 PollLevelLoadResult(sint32 level)
 {
     FUNCTION_MARKER(0x8002DEB8, "SLUS_005.78");
-    return (sint8)PollLevelLoad(level, mode);
+    return (sint8)PollLevelLoad(level);
+}
+
+uint32 UnloadLevelResources(void)
+{
+    FUNCTION_MARKER(0x8002DEDC, "SLUS_005.78");
+    scene_events.world_name_index = 0;
+    ReleaseSceneObjects();
+    scene_stream.active_section = 0;
+    scene_lighting.lights = 0;
+    sound_effects.Stop(1);
+    if (sequence_playback.current_handle != 0)
+    {
+        StopCurrentSequence();
+        CloseSequence(sequence_playback.current_handle);
+    }
+    sequence_playback.current_handle = 0;
+    if (sequence_playback.loading_phase != 0)
+    {
+        if (sequence_playback.loading_phase == 1 && SpuIsTransferCompleted(1) != 1)
+        {
+            fprintf(stderr, "P2: Cannot complete cancelled sequence transfer\n");
+            abort();
+        }
+        p2_sdk_80079b14((sint16)sequence_playback.loading_bank);
+        free(sequence_playback.loading_samples);
+        sequence_playback.loading_samples = NULL;
+        sequence_playback.loading_sample_bytes = 0;
+        sequence_playback.loading_bank = (uint16)OriginalDefaults::SequenceLoadingBank;
+        sequence_playback.loading_phase = 0;
+    }
+    if (level_loader.transfer_data != 0)
+    {
+        if (level_loader.phase == 3)
+        {
+            while (DrawSync(1) > 0)
+                ;
+        }
+        if (level_loader.phase == 5 && SpuIsTransferCompleted(1) != 1)
+        {
+            fprintf(stderr, "P2: Cannot complete cancelled level transfer\n");
+            abort();
+        }
+        free(level_loader.transfer_data);
+        level_loader.transfer_data = 0;
+        level_loader.transfer_bytes = 0;
+    }
+    if (scene_loader.phase != 0 || resource_archive.transfer_pending)
+        resource_archive.Poll();
+    free(scene_loader.image_data);
+    scene_loader.image_data = 0;
+    scene_loader.image_bytes = 0;
+    free(scene_loader.geometry_data);
+    scene_loader.geometry_data = 0;
+    scene_loader.geometry_bytes = 0;
+    for (uint32 source_slot = 0; source_slot < 2; ++source_slot)
+    {
+        free(scene_stream.buffers[source_slot].resource_data);
+        scene_stream.buffers[source_slot].resource_data = 0;
+        scene_stream.buffers[source_slot].resource_bytes = 0;
+        scene_stream.buffers[source_slot].section.data = 0;
+        scene_stream.buffers[source_slot].section.data_bytes = 0;
+    }
+    free(scene_loader.materials_data);
+    scene_loader.materials_data = 0;
+    scene_loader.materials_bytes = 0;
+    scene_loader.phase = 0;
+    scene_loader.sequence_bundle = 0;
+    scene_loader.destination_buffer = 0;
+    scene_loader.background = 0;
+    for (uint32 slot = 0; slot < SceneStream::SequenceBufferCount; ++slot)
+    {
+        free(scene_stream.sequence_bundles[slot].data);
+        scene_stream.sequence_bundles[slot].data = NULL;
+        scene_stream.sequence_bundles[slot].bytes = 0;
+    }
+    for (uint32 slot = 0; slot < 2; ++slot)
+    {
+        BackgroundResource *background = &scene_stream.backgrounds[slot];
+        free(background->data);
+        free(background->tiles);
+        memset(background, 0, sizeof(*background));
+        free(scene_stream.buffers[slot].section.lighting_records);
+        scene_stream.buffers[slot].section.lighting_records = NULL;
+        scene_stream.buffers[slot].section.lighting_count = 0;
+        scene_stream.buffers[slot].section.data_bytes = 0;
+    }
+    render_view.lighting_cache = NULL;
+    render_view.lighting_enabled = false;
+    ResetCharacterModels();
+    ResetActorModels();
+    ResetAnimatedModels();
+    RetainCommonModelGroups();
+    material_registry = saved_material_registry;
+    return material_registry.reserved[4];
 }

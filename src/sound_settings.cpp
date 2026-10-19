@@ -49,7 +49,7 @@ sint32 SoundSettings::AdjustMusic(sint32 direction)
             music_volume = (uint16)(4096);
     }
     if (direction != 0)
-        p2_func_8006a5e0(r_u8(0x8008A530) - 1u, music_volume);
+        SetSequenceVolume((uint8)sequence_playback.current_handle - 1u, music_volume);
     return (sint16)(music_volume);
 }
 
@@ -57,6 +57,6 @@ uint32 SoundSettings::SetMusic(uint32 handle, sint16 volume)
 {
     FUNCTION_MARKER(0x8005F124, "SLUS_005.78");
     music_volume = (uint16)(volume);
-    p2_func_8006a5e0(handle - 1, volume);
+    SetSequenceVolume(handle - 1, volume);
     return (uint32)(sint16)(music_volume);
 }

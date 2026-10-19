@@ -1,13 +1,16 @@
 #ifndef PLAYER_INTERACTION_H
 #define PLAYER_INTERACTION_H
 
+#include "psx.h"
+
+struct ActorBinding;
+
 struct PlayerInteractionState
 {
     unsigned int flags;
-    unsigned int target_offset;
+    ActorBinding *target;
+    VECTOR position;
 };
-
-typedef char PlayerInteractionStateSize[(sizeof(PlayerInteractionState) == 8) ? 1 : -1];
 
 extern PlayerInteractionState player_interaction;
 

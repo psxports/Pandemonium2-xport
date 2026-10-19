@@ -5,31 +5,43 @@
 
 #include "psx.h"
 
+struct TextureDescriptor;
+
+struct EncodedMaterialRecord
+{
+    uint32 texture_offset;
+    uint8 kind;
+    uint8 flags;
+    uint16 cycle_count;
+    uint32 animation_offset;
+    uint32 data_offset;
+};
+
+typedef char EncodedMaterialRecordSize[(sizeof(EncodedMaterialRecord) == 16) ? 1 : -1];
+typedef char EncodedMaterialRecordKindOffset[(offsetof(EncodedMaterialRecord, kind) == 4) ? 1 : -1];
+typedef char EncodedMaterialRecordCountOffset[(offsetof(EncodedMaterialRecord, cycle_count) == 6) ? 1 : -1];
+typedef char EncodedMaterialRecordAnimationOffset[(offsetof(EncodedMaterialRecord, animation_offset) == 8) ? 1 : -1];
+typedef char EncodedMaterialRecordDataOffset[(offsetof(EncodedMaterialRecord, data_offset) == 12) ? 1 : -1];
+
 struct MaterialRecord
 {
-    unsigned int texture_offset;
-    unsigned char kind;
-    unsigned char flags;
-    unsigned short cycle_count;
-    unsigned int animation_offset;
-    unsigned int data_offset;
+    TextureDescriptor *texture;
+    uint8 kind;
+    uint8 flags;
+    uint16 cycle_count;
+    uint8 *animation;
+    uint8 *data;
 
-    unsigned int CyclePalette(unsigned int animation, unsigned int frame) const;
+    unsigned int CyclePalette(uint8 *animation, unsigned int frame) const;
     unsigned int UploadPalette() const;
 };
 
-typedef char MaterialRecordSize[(sizeof(MaterialRecord) == 16) ? 1 : -1];
-typedef char MaterialRecordKindOffset[(offsetof(MaterialRecord, kind) == 4) ? 1 : -1];
-typedef char MaterialRecordCountOffset[(offsetof(MaterialRecord, cycle_count) == 6) ? 1 : -1];
-typedef char MaterialRecordAnimationOffset[(offsetof(MaterialRecord, animation_offset) == 8) ? 1 : -1];
-typedef char MaterialRecordDataOffset[(offsetof(MaterialRecord, data_offset) == 12) ? 1 : -1];
-
 extern "C"
 {
-uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame);
-void ResetMaterialAnimationList(uint32 *entries);
-sint32 UpdateMaterialAnimationList(uint32 *entries);
-uint32 SetMaterialAnimationFlags(uint32 *entry, uint32 flags);
+    uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame);
+    void ResetMaterialAnimationList(uint32 *entries);
+    sint32 UpdateMaterialAnimationList(uint32 *entries);
+    uint32 SetMaterialAnimationFlags(uint32 *entry, uint32 flags);
 }
 
 #endif

@@ -1,14 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "game.h"
 
 uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
 {
     uint32 encoded;
     uint32 index;
-    uint32 base;
     MaterialRecord *record;
     TextureDescriptor *texture;
     uint32 kind;
-    uint32 animation;
+    uint8 *animation;
     uint32 flags;
     uint32 phase;
     uint32 last_frame;
@@ -17,8 +19,7 @@ uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
     uint32 selected;
     uint32 random_frame;
     uint32 previous_random;
-    uint32 packet;
-    uint32 source;
+    const uint8 *source;
     uint32 words[2];
     uint16 page;
     FUNCTION_MARKER(0x80027314, "SLUS_005.78");
@@ -28,17 +29,22 @@ uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
     index = (encoded >> 1) & 0x1FF;
     if (encoded & 1)
     {
-        base = ((const SceneSection *)psx_addr(r_u32(0x8008A4E8), sizeof(SceneSection)))->materials.materials_offset;
-        record = (MaterialRecord *)psx_addr(base + 16 * index, sizeof(MaterialRecord));
+        SceneSection *section = scene_stream.active_section;
+        if (index >= section->materials.material_count || section->materials.materials == NULL)
+        {
+            fprintf(stderr, "P2: Invalid scene material index\n");
+            abort();
+        }
+        record = section->materials.materials + index;
     }
     else
         record = material_registry.records + index;
     kind = record->kind;
-    animation = record->animation_offset;
+    animation = record->animation;
     if (kind == 1)
     {
-        phase = (uint32)(((sint64)(sint32)frame * r_s32(animation)) >> 16);
-        ((TextureDescriptor *)psx_addr(record->texture_offset, sizeof(TextureDescriptor)))->payload.words[2] = phase;
+        phase = (uint32)(((sint64)(sint32)frame * (sint32)xport_load_le32(animation)) >> 16);
+        record->texture->payload.words[2] = phase;
         return 1;
     }
     if (kind == 0)
@@ -49,8 +55,8 @@ uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
     if (kind != 2)
         return 1;
     flags = (*entry >> 26) & 15;
-    phase = (uint32)(((sint64)(sint32)frame * r_s32(animation)) >> 16);
-    last_frame = r_u8(animation + 5);
+    phase = (uint32)(((sint64)(sint32)frame * (sint32)xport_load_le32(animation)) >> 16);
+    last_frame = animation[5];
     period = (flags & 2) ? 2 * last_frame : last_frame + 1;
     if ((flags & 8) != 0 && phase >= period)
         return 0;
@@ -60,10 +66,10 @@ uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
     selected = remainder;
     random_frame = 0;
     if (flags & 1)
-        selected = r_u8(animation + 5) - remainder;
+        selected = animation[5] - remainder;
     else if (flags & 2)
     {
-        last_frame = r_u8(animation + 5);
+        last_frame = animation[5];
         if ((sint32)(last_frame - remainder) < 0)
             selected = 2 * last_frame - remainder;
     }
@@ -76,30 +82,29 @@ uint32 UpdateMaterialAnimation(uint32 *entry, uint32 frame)
         } while (selected == previous_random);
         random_frame = selected;
     }
-    packet = record->texture_offset;
-    texture = (TextureDescriptor *)psx_addr(packet, sizeof(TextureDescriptor));
-    source = record->data_offset + 8 * selected;
+    texture = record->texture;
+    source = record->data + 8 * selected;
     page = texture->payload.halfwords[3];
-    words[0] = r_u32(source);
-    words[1] = r_u32(source + 4);
+    words[0] = xport_load_le32(source);
+    words[1] = xport_load_le32(source + 4);
     texture->payload.words[0] = words[0];
     texture->payload.words[1] = words[1];
-    ((TextureDescriptor *)psx_addr(record->texture_offset, sizeof(TextureDescriptor)))->payload.halfwords[3] = page;
+    record->texture->payload.halfwords[3] = page;
     *entry = (*entry & 1) | (index << 1) | (remainder << 10) | (random_frame << 18) | (flags << 26);
     return 1;
 }
 
-unsigned int MaterialRecord::CyclePalette(unsigned int animation, unsigned int frame) const
+unsigned int MaterialRecord::CyclePalette(uint8 *animation, unsigned int frame) const
 {
     uint32 remaining;
-    uint32 palette;
-    uint32 cycle;
+    uint8 *palette;
+    uint8 *cycle;
     uint32 phase;
     sint32 delta;
     sint32 difference;
     sint32 distance;
-    uint32 destination;
-    uint32 source;
+    uint8 *destination;
+    uint8 *source;
     uint32 length;
     uint32 first_bytes;
     uint32 second_bytes;
@@ -107,63 +112,66 @@ unsigned int MaterialRecord::CyclePalette(unsigned int animation, unsigned int f
     uint8 temporary[512];
     FUNCTION_MARKER(0x80027034, "SLUS_005.78");
     remaining = cycle_count;
-    palette = data_offset;
+    palette = data;
     cycle = animation + 4;
     do
     {
-        phase = (uint32)(((sint64)(sint32)frame * r_s32(animation)) >> 16);
-        difference = (sint32)r_u8(cycle + 1) - r_u8(cycle);
+        phase = (uint32)(((sint64)(sint32)frame * (sint32)xport_load_le32(animation)) >> 16);
+        difference = (sint32)cycle[1] - cycle[0];
         distance = difference > 0 ? difference : -difference;
         phase %= (uint32)distance + 1;
-        delta = (sint32)r_u8(cycle + 2) - (sint32)phase;
+        delta = (sint32)cycle[2] - (sint32)phase;
         if (delta != 0)
         {
-            w_u8(cycle + 2, phase);
+            cycle[2] = (uint8)phase;
             if (delta == -1 || delta == distance)
             {
-                destination = palette + 2 * r_u8(cycle + 1);
-                saved = r_u16(destination);
+                destination = palette + 2 * cycle[1];
+                saved = xport_load_le16(destination);
                 if (difference > 0)
                 {
-                    source = palette + 2 * r_u8(cycle);
+                    source = palette + 2 * cycle[0];
                     destination = source + 2;
                 }
                 else
                     source = destination + 2;
-                p2_func_800663ac(destination, source, 2 * (uint32)distance);
-                w_u16(palette + 2 * r_u8(cycle), saved);
+                MoveBytes(destination, source, 2 * (uint32)distance);
+                xport_store_le16(palette + 2 * cycle[0], saved);
             }
             else
             {
                 if (difference >= 0)
                 {
                     delta = -delta;
-                    destination = palette + 2 * r_u8(cycle);
+                    destination = palette + 2 * cycle[0];
                 }
                 else
-                    destination = palette + 2 * r_u8(cycle + 1);
+                    destination = palette + 2 * cycle[1];
                 length = (uint32)distance + 1;
-                p2_func_8006637c(temporary, (const uint8 *)psx_addr(destination, 2 * length), 2 * length);
+                CopyBytes(temporary, destination, 2 * length);
                 if (delta <= 0)
                 {
                     delta = -delta;
                     second_bytes = 2 * (uint32)delta;
                     first_bytes = 2 * (length - (uint32)delta);
-                    source = second_bytes;
+                    source = temporary + second_bytes;
                 }
                 else
                 {
                     second_bytes = 2 * (length - (uint32)delta);
                     first_bytes = 2 * (uint32)delta;
-                    source = second_bytes;
+                    source = temporary + second_bytes;
                 }
-                p2_func_8006637c((uint8 *)psx_addr(destination, first_bytes), temporary + source, first_bytes);
-                p2_func_8006637c((uint8 *)psx_addr(destination + first_bytes, second_bytes), temporary, second_bytes);
+                CopyBytes(destination, source, first_bytes);
+                CopyBytes(destination + first_bytes, temporary, second_bytes);
             }
         }
-        cycle += 8;
-        animation += 8;
         --remaining;
+        if (remaining != 0)
+        {
+            cycle += 8;
+            animation += 8;
+        }
     } while (remaining != 0);
     return UploadPalette();
 }
@@ -171,22 +179,22 @@ unsigned int MaterialRecord::CyclePalette(unsigned int animation, unsigned int f
 unsigned int MaterialRecord::UploadPalette() const
 {
     const TextureDescriptor *texture;
-    uint32 palette;
+    const uint8 *palette;
     uint16 clut;
     uint16 page;
     FUNCTION_MARKER(0x80064D88, "SLUS_005.78");
-    texture = (const TextureDescriptor *)psx_addr(texture_offset, sizeof(TextureDescriptor));
-    palette = data_offset;
+    texture = this->texture;
     clut = texture->payload.halfwords[3];
     page = texture->payload.halfwords[2];
-    return p2_func_80066b78(clut, page, palette);
+    palette = data;
+    return UploadTexturePalette(clut, page, palette);
 }
 
 uint32 SetMaterialAnimationFlags(uint32 *entry, uint32 flags)
 {
     FUNCTION_MARKER(0x80027648, "SLUS_005.78");
-    uint32 value, index, table, result;
-    MaterialRecord *record;
+    uint32 value, index, result;
+    uint32 kind;
     value = *entry;
     result = value >> 1;
     if (value == 0xFFFFFFFF)
@@ -194,20 +202,24 @@ uint32 SetMaterialAnimationFlags(uint32 *entry, uint32 flags)
     index = result & 0x1FF;
     if ((value & 1) != 0)
     {
-        table = ((const SceneSection *)psx_addr(r_u32(0x8008A4E8), sizeof(SceneSection)))->materials.materials_offset;
-        record = (MaterialRecord *)psx_addr(table + index * 16, sizeof(MaterialRecord));
+        const SceneSection *section = scene_stream.active_section;
+        if (index >= section->materials.material_count || section->materials.materials == NULL)
+        {
+            fprintf(stderr, "P2: Invalid scene material flag index\n");
+            abort();
+        }
+        kind = section->materials.materials[index].kind;
     }
     else
-        record = material_registry.records + index;
+        kind = material_registry.records[index].kind;
     result = index * 2;
-    if (record->kind == 2)
+    if (kind == 2)
     {
         result |= (value & 1) | (flags << 26);
         *entry = result;
     }
     return result;
 }
-
 
 void ResetMaterialAnimationList(uint32 *entries)
 {
@@ -244,4 +256,26 @@ sint32 UpdateMaterialAnimationList(uint32 *entries)
         } while (remaining != 0);
     }
     return (sint8)UpdateMaterialAnimation(pointer, frame);
+}
+
+uint32 UpdateResourceMaterialAnimations(void)
+{
+    uint32 index;
+    uint32 saved_frame;
+    uint32 result;
+    FUNCTION_MARKER(0x80027228, "SLUS_005.78");
+    for (index = 0; index < 28; ++index)
+    {
+        if (index == 1 || index == 5 || ((game_flow.transition_flags & 0x10) == 0 && index >= 13))
+        {
+            saved_frame = frame_clock.render_tick;
+            if (index == 1 || index == 5)
+                frame_clock.render_tick = frame_clock.menu_tick;
+            UpdateMaterialAnimationList(resource_groups[index].animation_entries);
+            frame_clock.render_tick = saved_frame;
+        }
+    }
+    result = frame_clock.menu_tick + 1;
+    frame_clock.menu_tick = result;
+    return result;
 }
