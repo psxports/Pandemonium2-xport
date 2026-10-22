@@ -1,0 +1,615 @@
+{
+  "github": {
+    "repository": "psxports/Pandemonium2-xport",
+    "branch": "main"
+  },
+  "schema": 1,
+  "name": "Pandemonium 2",
+  "short_name": "P2",
+  "toolset": "C:\\Projects\\xports\\xport\\tools",
+  "paths": {
+    "status": "status",
+    "project_tools": "tools",
+    "analysis_database": "status/analysis.sqlite",
+    "native_executable": "bin/P2.exe",
+    "native_debug_executable": "bin/P2_debug.exe",
+    "native_working_directory": "bin",
+    "native_solution": "src/platform/win/P2.sln",
+    "native_build": "_build",
+    "ida_exports": "orig/images-main-gp-v3",
+    "ida_configs": "tools/ida",
+    "sdk_classification": "status/ghidra/classification.json",
+    "disc_image": "iso/Pandemonium 2 (USA).cue",
+    "music_source": "iso",
+    "music_output": "bin/MUSIC",
+    "original_executable": "orig/SLUS_005.78"
+  },
+  "duckstation": {
+    "host": "127.0.0.1",
+    "gdb_port": 2439,
+    "reserved_gdb_ports": {
+      "user": 2439,
+      "lockstep": 2440,
+      "audit": 2441,
+      "trace": 2442
+    },
+    "default_role": "user",
+    "data_directory": "tools/duckstation/data/user",
+    "data_directories": {
+      "user": "tools/duckstation/data/user",
+      "lockstep": "tools/duckstation/data/lockstep",
+      "audit": "tools/duckstation/data/audit",
+      "trace": "tools/duckstation/data/trace"
+    }
+  },
+  "lockstep": {
+    "schema": 1,
+    "enabled": false,
+    "original_image": "SLUS_005.78",
+    "native_configuration": "Debug",
+    "native_platform": "x86",
+    "msbuild_property": "LockstepDebug=true",
+    "source_roots": [
+      "src"
+    ],
+    "max_events": 1000000,
+    "memory": {
+      "dram_size": 2097152,
+      "scratchpad_size": 1024
+    },
+    "devices": {
+      "vram": "trusted_wrapper",
+      "spu_ram": "trusted_wrapper"
+    },
+    "runtime": {
+      "duckstation_role": "lockstep",
+      "record_role": "user",
+      "native_arguments": [
+        "--lockstep-replay"
+      ]
+    }
+  },
+  "code_refresh": {
+    "build": {
+      "solution": "src/platform/win/P2.sln",
+      "configuration": "Debug",
+      "platform": "x86",
+      "process_name": "P2_debug.exe"
+    },
+    "tests": [
+      {
+        "name": "native_random_generator",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_random_generator.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_resource_archive",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_resource_archive.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_object_operations",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_object_operations.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_sound_effects",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_sound_effects.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_function_markers",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_function_markers.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_frame_pacer",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_frame_pacer.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_sound_settings",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_sound_settings.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "legacy_cpp_native_x86",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_legacy_cpp.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_gameplay_input",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_gameplay_input.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_original_control_schemes",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_control_bindings.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_object_links",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_object_links.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_resource_groups",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_resource_groups.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_material_registry",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_material_registry.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_material_records",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_material_record.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_game_flow",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_game_flow.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_player_interaction",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_player_interaction.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_collision_contact",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_collision_selection.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_render_view",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_render_view.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_fixed_trigonometry",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_fixed_trigonometry.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_render_commands",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_render_commands.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_bootstrap_defaults",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_bootstrap_defaults.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_actions",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_actions.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_action_flow",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_action_flow.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_sound",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_sound.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_contacts",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_contacts.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_events",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_events.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_contact_response",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_contact_response.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_vitals",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_vitals.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_timers",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_timers.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_character_motion",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_character_motion.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_movement_flags",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_movement_flags.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_input_release_mask",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_input_release_mask.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_extra_movement_timers",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_extra_movement_timers.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_path_body_boundaries",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_path_bodies.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_path_auxiliary_cleanup",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_path_auxiliary_cleanup.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_controller_vectors",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_controller_vectors.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_controller_profile",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_controller_profile.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_animation_data",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_animation_data.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_object_callback_abi",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_object_callback_abi.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_sprite_extent",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_sprite_extent.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "original_default_tables",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_original_default_tables.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_password_generation",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_password_generation.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_structured_defaults",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_structured_defaults.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_cutscene_lifecycle",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_cutscene_lifecycle.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_model_group_doppler",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_model_group_doppler.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_cutscene_scene_release",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_cutscene_scene_release.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "rotation_type_cleanup",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_rotation_types.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "scalar_domain_cleanup",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_scalar_domains.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_gpu_packet_views",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_gpu_packet_views.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_font_byte_domain",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_font_byte_domain.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_fall_tick_domain",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_fall_tick_domain.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_wave_phase_domain",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_wave_phase_domain.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_collision_index_domains",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_collision_index_domains.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_speed_table_reload",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_speed_table_reload.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_animation_numeric_semantics",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_animation_numeric_semantics.py",
+          "-v"
+        ]
+      },
+      {
+        "name": "native_class_modules",
+        "argv": [
+          "{python}",
+          "-B",
+          "tools/test_class_modules.py",
+          "-v"
+        ]
+      }
+    ],
+    "artifacts": [],
+    "report": "status/native-layout-reconstruction/debug.json",
+    "log": "status/native-layout-reconstruction/debug.log"
+  },
+  "analysis": {
+    "images": [
+      "SLUS_005.78"
+    ],
+    "default_image": "SLUS_005.78",
+    "deferred_images": [
+      "FMV.EXE"
+    ],
+    "pseudocode_reviews": "status/pseudocode-reviews.json"
+  },
+  "capabilities": {
+    "redbook_audio": {
+      "enabled": false,
+      "reason": "Reviewed CUE contains no AUDIO tracks"
+    },
+    "fmv": {
+      "enabled": false,
+      "reason": "User requested skipping FMV module launches while focusing on SLUS_005.78"
+    }
+  },
+  "refactoring": {
+    "mode": "native",
+    "language": "C++",
+    "status": "status/native-refactoring/progress.json",
+    "baseline": "status/native-refactoring/baseline-manifest.json"
+  }
+}
