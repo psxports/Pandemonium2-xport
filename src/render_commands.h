@@ -1,7 +1,11 @@
 #ifndef RENDER_COMMANDS_H
 #define RENDER_COMMANDS_H
+#include <stddef.h>
 
 #include "psx.h"
+
+struct RenderBuffer;
+struct RenderCommands;
 
 struct RenderBuffer
 {
@@ -15,35 +19,37 @@ struct RenderBuffer
 };
 
 extern const RenderBuffer render_buffer_defaults[2];
+
 extern RenderBuffer render_buffers[2];
 
 struct RenderCommands
 {
-    unsigned int ordering_table_offset;
-    unsigned int scene_ordering_table_offset;
-    unsigned int other_packet_base;
-    unsigned int small_ordering_table_offset;
-    unsigned int packet_offset;
-    unsigned int packet_limit;
-    unsigned int aux_packet_offset;
-    unsigned int overlay_head;
-    unsigned int overlay_tail;
+    uint32 ordering_table_offset;
+    uint32 scene_ordering_table_offset;
+    uint32 other_packet_base;
+    uint32 small_ordering_table_offset;
+    uint32 packet_offset;
+    uint32 packet_limit;
+    uint32 aux_packet_offset;
+    uint32 overlay_head;
+    uint32 overlay_tail;
     DISPENV *pending_disp_env;
-    unsigned int submitted_chain_offset;
-    unsigned int pending_draw;
-    unsigned char nesting;
-    unsigned char active_buffer;
+    uint32 submitted_chain_offset;
+    uint32 pending_draw;
+    uint8 nesting;
+    uint8 active_buffer;
+
+    static void InitializeRenderBuffers(void);
+    static void ResetRenderCommands(void);
+    static void ClearSceneOrderingTable(void);
+    static void BeginDraw(void);
+    static void EndDraw(void);
+    static DISPENV *SubmitOverlayFrame(uint32 ot0_offset, uint32 ot1_offset);
+    static void MarkDrawComplete(void);
+    static void ShowPendingDisp(void);
+    static void EmptyRenderOperation(void);
 };
 
 extern RenderCommands render_commands;
-
-DISPENV *SubmitOverlayFrame(uint32 first_ot_offset, uint32 second_ot_offset);
-
-extern "C"
-{
-    void InitializeRenderBuffers(void);
-    void ShowPendingDisplay(void);
-    void MarkDrawComplete(void);
-}
 
 #endif

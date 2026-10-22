@@ -1,277 +1,51 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "character_preview.h"
 #include "game.h"
-#include "original_defaults.h"
 
-const PreviewAnimationStep preview_animation_steps[1] = {{2, {0xFFFFF000, 0}, 1000}};
+const PreviewAnimationStep preview_animation_steps[1] = {{2, {-4096, 0}, 1000}};
+
 PreviewPlayback preview_playback = {0};
 
-void CharacterPreview::Update()
+AnimatedObject *CharacterPreview::PrepareCompletionCharacter(void)
 {
-    CharacterModelRecord *animation_record;
-    uint32 current;
-    AnimationHeader *next;
-    const PreviewAnimationStep *step;
-    uint32 duration;
-    AnimatedObject *object;
-    uint32 entry;
-    AnimationHeader *old_animation;
-    uint32 flags;
-    uint32 x;
-    uint32 y;
-    uint32 result;
-    FUNCTION_MARKER(0x80053CA0, "SLUS_005.78");
-    current = preview_playback.tick;
-    if ((sint32)current < 0)
-    {
-        step = preview_playback.first_step;
-        preview_playback.reset_word = 0;
-        preview_playback.tick = 0;
-        preview_playback.cur_step = step;
-    }
-    else
-    {
-        step = preview_playback.cur_step;
-        duration = step->duration;
-        ++current;
-        preview_playback.tick = current;
-        if ((sint32)duration < (sint32)current)
-        {
-            preview_playback.tick = 0;
-            // Advancing past the sole step would read the following sine table
-            preview_playback.cur_step = preview_playback.first_step;
-        }
-    }
-    entry = character_controller.motion.form_flags;
-    {
-        uint32 model_index = (((entry >> 18) & 0x3C)) / 4;
-        CharacterModelRecord *model_binding;
-        if (model_index < CharacterController::ModelCount)
-            model_binding = character_controller.model_slots[model_index];
-        else
-        {
-            fprintf(stderr, "P2: Invalid character model index %u\n", model_index);
-            abort();
-        }
-        if (model_binding == 0)
-        {
-            this->object = 0;
-            return;
-        }
-        animation_record = model_binding;
-    }
-    object = animation_record->object;
-    if (object == 0)
-    {
-        this->object = 0;
-        return;
-    }
-    step = preview_playback.cur_step;
-    current = step->animation;
-    old_animation = object->animation;
-    next = animation_record->animations[current];
-    if (object->unbound_animation_word != 0 || old_animation != next)
-    {
-        flags = object->flags;
-        object->animation = next;
-        object->unbound_animation_word = 0;
-        object->frame = -1;
-        object->flags = flags | 0x10000;
-        velocity[0] = step->velocity[0];
-        velocity[1] = step->velocity[1];
-    }
-    y = position[1];
-    duration = velocity[1];
-    x = position[0];
-    flags = velocity[0];
-    y += duration;
-    x += flags;
-    position[1] = y;
-    position[0] = x;
-    if ((sint32)x > 143359)
-    {
-        result = 0 - velocity[0];
-        position[0] = 143360;
-        velocity[0] = result;
-    }
-    else
-    {
-        if ((sint32)x <= -143360)
-        {
-            result = 0 - velocity[0];
-            position[0] = (uint32)-143360;
-            velocity[0] = result;
-        }
-    }
-    this->object = object;
-}
-
-void CharacterPreview::Draw()
-{
-    SceneSection local_section = {0};
-    AnimatedObject *object;
-    SceneNode *sprite;
-    SceneSection *saved_context;
-    uint32 flags;
-    uint32 x;
-    uint32 y;
-    uint32 z;
-    uint32 angle;
-    AnimationHeader *animation;
-    SpriteRecord *child;
-    SceneLight local_light = {0};
-    SceneLight *light;
-    SceneLight *saved_lights = scene_lighting.lights;
-    uint32 projection;
-    sint32 frame;
-    sint32 count;
-    uint8 byte_flags;
-    FUNCTION_MARKER(0x8006DE08, "SLUS_005.78");
-    light = &local_light;
-    object = this->object;
-    if (object == 0)
-        return;
-    byte_flags = object->node.flags;
-    flags = object->flags;
-    object->movement_mode = 0;
-    object->node.flags = byte_flags & 0xFD;
-    saved_context = scene_stream.active_section;
-    object->path_definition = 0;
-    object->flags = flags | 0x2000;
-    scene_stream.active_section = &local_section;
-    scene_lighting.lights = 0;
-    scene_lighting.ambient[2] = (uint16)(128);
-    scene_lighting.ambient[1] = (uint16)(128);
-    scene_lighting.ambient[0] = (uint16)(128);
-    camera_motion.position[1] = 0;
-    camera_motion.position[0] = 0;
-    camera_motion.position[2] = (uint32)-49152;
-    camera_motion.focus_position[2] = 0;
-    camera_motion.focus_position[1] = 0;
-    camera_motion.focus_position[0] = 0;
-    x = camera_motion.focus_position[0];
-    y = camera_motion.focus_position[1];
-    z = camera_motion.focus_position[2];
-    object->world_position[0] = x;
-    object->world_position[1] = y;
-    object->world_position[2] = z;
-    object->metadata_words72[0] = 40960;
-    this->object->node.Register();
-    x = camera_motion.focus_position[0];
-    y = camera_motion.focus_position[1];
-    z = camera_motion.focus_position[2];
-    object->position[0] = x;
-    object->position[1] = y;
-    object->position[2] = z;
-    x = object->position[0];
-    y = position[0];
-    object->position[0] = x + y;
-    x = object->position[1];
-    y = position[1];
-    object->position[1] = x + y;
-    x = object->position[2];
-    y = position[2];
-    object->position[2] = x + y;
-    object->orientation[0] = 0x7FFF;
-    z = velocity[2];
-    x = velocity[0];
-    angle = Atan2Angle((sint32)(0 - z), (sint32)(0 - x));
-    animation = object->animation;
-    object->orientation[2] = (angle + 2048) & 0xFFF;
-    frame = 0;
-    if (animation != 0)
-    {
-        frame = object->frame;
-        count = animation->frame_count;
-        frame = frame < count - 1 ? frame + 1 : 0;
-    }
-    object->frame = (uint16)frame;
-    object->ClampAnimationFrame();
-    projection = camera_projection.scale;
-    light->source.direction.vz = -4096;
-    light->color[0] = 2056;
-    light->color[1] = 2056;
-    light->color[2] = 2056;
-    light->links.registry_next = 0;
-    light->flags = 0;
-    light->event_flags = 0;
-    light->source.direction.vy = 0;
-    light->source.direction.vx = 0;
-    scene_lighting.lights = light;
-    if (projection != 955733 || camera_projection.view_normals[0].vz != 4096)
-    {
-        camera_projection.scale = 955733;
-        SetCameraProjection(955733);
-    }
-    byte_flags = camera_motion.flags;
-    camera_projection.far_distance = 1228800;
-    camera_motion.flags = byte_flags & 0xFE;
-    child = (object->sprite);
-    sprite = (SceneNode *)child;
-    object->sprite = 0;
-    if (sprite != 0)
-        sprite->flags |= 1;
-    DrawSceneFrame(0);
-    object->sprite = child;
-    if (sprite != 0)
-        sprite->flags &= 0xFE;
-    this->object->node.Unregister();
-    object->movement_mode = 1;
-    scene_stream.active_section = saved_context;
-    scene_lighting.lights = saved_lights;
-}
-
-AnimatedObject *PrepareCompletionCharacter(void)
-{
-    CharacterModelRecord *model_record;
+    CharacterModelRecord *model_rec;
     FUNCTION_MARKER(0x80053BF0, "SLUS_005.78");
-    AnimatedObject *object = character_controller.object;
+    AnimatedObject *object = character_pad.object;
     AnimationHeader *action;
     AnimatedObject *result = object;
     if (object == 0)
     {
         {
-            uint32 model_index = (((character_controller.motion.form_flags >> 18) & 60)) / 4;
+            uint32 model_idx = (((character_pad.motion.form_flags >> 18) & 60)) / 4;
             CharacterModelRecord *model_binding;
-            if (model_index < CharacterController::ModelCount)
-                model_binding = character_controller.model_slots[model_index];
-            else
-            {
-                fprintf(stderr, "P2: Invalid character model index %u\n", model_index);
-                abort();
-            }
+            model_binding = character_pad.model_slots[model_idx];
             if (model_binding == 0)
                 return 0;
-            model_record = model_binding;
+            model_rec = model_binding;
         }
-        object = model_record->object;
+        object = model_rec->object;
         if (object == 0)
             return 0;
         result = object;
-        object->metadata126[0] = 1;
+        object->contact_kind = 1;
         object->behavior = 1;
-        object->metadata126[1] = 0;
-        object->spheres[3].radius = (uint32)-1;
-        object->spheres[2].radius = (uint32)-1;
-        object->spheres[1].radius = (uint32)-1;
-        object->spheres[0].radius = (uint32)-1;
+        object->behavior_suspended = 0;
+        object->spheres[3].radius = -1;
+        object->spheres[2].radius = -1;
+        object->spheres[1].radius = -1;
+        object->spheres[0].radius = -1;
     }
     {
-        uint32 model_index = (((character_controller.motion.form_flags >> 18) & 60)) / 4;
+        uint32 model_idx = (((character_pad.motion.form_flags >> 18) & 60)) / 4;
         CharacterModelRecord *model_binding;
-        if (model_index < CharacterController::ModelCount)
-            model_binding = character_controller.model_slots[model_index];
-        else
-        {
-            fprintf(stderr, "P2: Invalid character model index %u\n", model_index);
-            abort();
-        }
+        model_binding = character_pad.model_slots[model_idx];
         if (model_binding == 0)
             return 0;
-        model_record = model_binding;
+        model_rec = model_binding;
     }
-    action = model_record->animations[2];
+    action = model_rec->animations[2];
     if (object->unbound_animation_word != 0 || object->animation != action)
     {
         uint32 flags = object->flags;
@@ -283,93 +57,286 @@ AnimatedObject *PrepareCompletionCharacter(void)
     return result;
 }
 
-uint32 DrawLoadingFrame(void)
+void CharacterPreview::Update()
+{
+    CharacterModelRecord *animation_rec;
+    uint32 cur;
+    AnimationHeader *next;
+    const PreviewAnimationStep *step;
+    sint32 duration;
+    AnimatedObject *preview_object;
+    uint32 entry;
+    AnimationHeader *old_animation;
+    uint32 flags;
+    sint32 x;
+    sint32 y;
+    FUNCTION_MARKER(0x80053CA0, "SLUS_005.78");
+    cur = preview_playback.tick;
+    if ((sint32)cur < 0)
+    {
+        step = preview_playback.first_step;
+        preview_playback.reset_word = 0;
+        preview_playback.tick = 0;
+        preview_playback.cur_step = step;
+    }
+    else
+    {
+        step = preview_playback.cur_step;
+        duration = step->duration;
+        ++cur;
+        preview_playback.tick = cur;
+        if (duration < (sint32)cur)
+        {
+            preview_playback.tick = 0;
+            // Advancing past the sole step would read the following sine table
+            preview_playback.cur_step = preview_playback.first_step;
+        }
+    }
+    entry = character_pad.motion.form_flags;
+    {
+        uint32 model_idx = (((entry >> 18) & 0x3C)) / 4;
+        CharacterModelRecord *model_binding;
+        model_binding = character_pad.model_slots[model_idx];
+        if (model_binding == 0)
+        {
+            object = 0;
+            return;
+        }
+        animation_rec = model_binding;
+    }
+    preview_object = animation_rec->object;
+    if (preview_object == 0)
+    {
+        object = 0;
+        return;
+    }
+    step = preview_playback.cur_step;
+    cur = step->animation;
+    old_animation = preview_object->animation;
+    next = animation_rec->animations[cur];
+    if (preview_object->unbound_animation_word != 0 || old_animation != next)
+    {
+        flags = preview_object->flags;
+        preview_object->animation = next;
+        preview_object->unbound_animation_word = 0;
+        preview_object->frame = -1;
+        preview_object->flags = flags | 0x10000;
+        velocity.x = step->velocity[0];
+        velocity.y = step->velocity[1];
+    }
+    y = pos.y + velocity.y;
+    x = pos.x + velocity.x;
+    pos.y = y;
+    pos.x = x;
+    if (x > 143359)
+    {
+        pos.x = 143360;
+        velocity.x = -velocity.x;
+    }
+    else
+    {
+        if (x <= -143360)
+        {
+            pos.x = -143360;
+            velocity.x = -velocity.x;
+        }
+    }
+    object = preview_object;
+}
+
+void CharacterPreview::DrawLoadingFrame(void)
 {
     FUNCTION_MARKER(0x80066168, "SLUS_005.78");
     const TextureDescriptor *image;
-    uint32 index;
-    BeginDraw();
-    ClearSceneOrderingTable();
-    DrawBackgroundRectangle(0, 0xF00140, 0);
-    image = resource_groups[2].texture;
-    for (index = 0; index < 2; ++index)
+    uint32 idx;
+    RenderCommands::BeginDraw();
+    RenderCommands::ClearSceneOrderingTable();
+    ScreenRenderState::DrawBackgroundRect(0, 0xF00140, 0);
+    image = resource_grps[2].tex;
+    for (idx = 0; idx < 2; ++idx)
     {
-        sint32 width = (sint32)image->payload.bytes[2] - image->payload.bytes[0];
-        sint32 height = (sint32)image->payload.bytes[3] - image->payload.bytes[1];
-        uint32 x = (uint32)((319 - width) >> 1);
-        uint32 y = (uint32)((239 - height) >> 1);
-        DrawTexturedQuad(x | (y << 16), 0, image, 0);
+        sint32 width = image->mapping.right - image->mapping.left;
+        sint32 height = image->mapping.bottom - image->mapping.top;
+        uint32 x = (319 - width) >> 1;
+        uint32 y = (239 - height) >> 1;
+        MaterialCatalog::DrawTexturedQuad(x | (y << 16), 0, image, 0);
     }
-    return EndDraw();
+    RenderCommands::EndDraw();
 }
 
-uint32 DrawCompletionFrame(sint32 percent, uint32 flags, sint32 next_level, CharacterPreview *preview, sint8 mode)
+void CharacterPreview::Draw()
+{
+    SceneSection local_section = {0};
+    AnimatedObject *preview_object;
+    SceneNode *spr;
+    SceneSection *saved_context;
+    uint32 flags;
+    uint32 x;
+    uint32 y;
+    uint32 z;
+    uint32 angle;
+    AnimationHeader *animation;
+    SpriteRecord *child;
+    SceneLight local_light = {0};
+    SceneLight *light;
+    SceneLight *saved_lights = scene_lighting.lights;
+    uint32 proj;
+    sint32 frame;
+    sint32 count;
+    uint8 byte_flags;
+    FUNCTION_MARKER(0x8006DE08, "SLUS_005.78");
+    light = &local_light;
+    preview_object = object;
+    if (preview_object == 0)
+        return;
+    byte_flags = preview_object->node.flags;
+    flags = preview_object->flags;
+    preview_object->movement_mode = 0;
+    preview_object->node.flags = byte_flags & 0xFD;
+    saved_context = scene_stream.active_section;
+    preview_object->path_definition = 0;
+    preview_object->flags = flags | 0x2000;
+    scene_stream.active_section = &local_section;
+    scene_lighting.lights = 0;
+    scene_lighting.ambient[2] = 128;
+    scene_lighting.ambient[1] = 128;
+    scene_lighting.ambient[0] = 128;
+    camera_motion.pos.y = 0;
+    camera_motion.pos.x = 0;
+    camera_motion.pos.z = -49152;
+    camera_motion.focus_pos.z = 0;
+    camera_motion.focus_pos.y = 0;
+    camera_motion.focus_pos.x = 0;
+
+    preview_object->world_pos = camera_motion.focus_pos;
+    preview_object->bounds.radius = 40960;
+    object->node.Register();
+
+    preview_object->pos = camera_motion.focus_pos;
+    x = preview_object->pos.x;
+    y = (uint32)pos.x;
+    preview_object->pos.x = x + y;
+    x = preview_object->pos.y;
+    y = (uint32)pos.y;
+    preview_object->pos.y = x + y;
+    x = preview_object->pos.z;
+    y = (uint32)pos.z;
+    preview_object->pos.z = x + y;
+    preview_object->orientation[0] = 0x7FFF;
+    z = (uint32)velocity.z;
+    x = (uint32)velocity.x;
+    angle = Atan2Angle((-z), (-x));
+    animation = preview_object->animation;
+    preview_object->orientation[2] = (angle + 2048) & 0xFFF;
+    frame = 0;
+    if (animation != 0)
+    {
+        frame = preview_object->frame;
+        count = animation->frame_count;
+        frame = frame < count - 1 ? frame + 1 : 0;
+    }
+    preview_object->frame = frame;
+    preview_object->ClampAnimationFrame();
+    proj = camera_proj.scale;
+    light->src.dir.vz = -4096;
+    light->color[0] = 2056;
+    light->color[1] = 2056;
+    light->color[2] = 2056;
+    light->links.registry_next = 0;
+    light->flags = 0;
+    light->event_flags = 0;
+    light->src.dir.vy = 0;
+    light->src.dir.vx = 0;
+    scene_lighting.lights = light;
+    if (proj != 955733 || camera_proj.view_normals[0].vz != 4096)
+    {
+        camera_proj.scale = 955733;
+        CameraProjection::SetCameraProj(955733);
+    }
+    byte_flags = camera_motion.flags;
+    camera_proj.far_distance = 1228800;
+    camera_motion.flags = byte_flags & 0xFE;
+    child = preview_object->spr;
+    spr = (SceneNode *)child;
+    preview_object->spr = 0;
+    if (spr != 0)
+        spr->flags |= 1;
+    CameraProjection::DrawSceneFrame(0);
+    preview_object->spr = child;
+    if (spr != 0)
+        spr->flags &= 0xFE;
+    object->node.Unregister();
+    preview_object->movement_mode = 1;
+    scene_stream.active_section = saved_context;
+    scene_lighting.lights = saved_lights;
+}
+
+void CharacterPreview::DrawCompletionFrame(sint32 percent, uint32 flags, sint32 next_level, CharacterPreview *preview, sint8 mode)
 {
     const MenuMaterialResources *resources;
     FUNCTION_MARKER(0x8006E098, "SLUS_005.78");
     char text[40];
-    uint32 value, result;
-    BeginDraw();
+    uint32 val, result;
+    RenderCommands::BeginDraw();
     preview->Draw();
-    ClearSceneOrderingTable();
-    DrawBackgroundRectangle(0, 0xF00140, flags);
+    RenderCommands::ClearSceneOrderingTable();
+    ScreenRenderState::DrawBackgroundRect(0, 0xF00140, flags);
     if (flags == 0x800000)
-        DrawText(0x6E00A0, UiText::BossDefeated, 1, 0);
+        UiText::DrawText(0x6E00A0, UiText::boss_defeated, 1, 0);
     else
     {
         if (flags == 0x8000)
         {
-            sprintf(text, mode != 0 ? UiText::BonusOver : UiText::BonusComplete);
-            DrawText(0x6E00A0, text, 1, 0);
+            sprintf(text, mode != 0 ? UiText::bonus_over : UiText::bonus_complete);
+            UiText::DrawText(0x6E00A0, text, 1, 0);
         }
         else
-            DrawText(0x5000A0, UiText::LevelComplete, 1, 0);
-        sprintf(text, UiText::TreasureFormat, percent);
-        DrawText(0x8200A0, text, 1, 0);
+            UiText::DrawText(0x5000A0, UiText::level_complete, 1, 0);
+        sprintf(text, UiText::treasure_format, percent);
+        UiText::DrawText(0x8200A0, text, 1, 0);
     }
-    if ((sint32)preview->position[2] < 20481)
+    if (preview->pos.z < 20481)
     {
-        DrawTexturedQuad(0xC80037, 0, interface_resources->textures + 8, 0);
+        MaterialCatalog::DrawTexturedQuad(0xC80037, 0, interface_resources->texs + 8, 0);
         if (next_level == 96)
-            DrawText(0xCA005A, UiText::BoarderRun, 0, 0);
+            UiText::DrawText(0xCA005A, UiText::boarder_run, 0, 0);
         else
         {
-            DrawText(0x96001A, UiText::Password, 0, 0);
-            DrawPassword(140, 148, 0);
-            DrawText(0xCA005A, UiText::Continue, 0, 0);
+            UiText::DrawText(0x96001A, UiText::password, 0, 0);
+            MenuState::DrawPassword(140, 148, 0);
+            UiText::DrawText(0xCA005A, UiText::continue_text, 0, 0);
         }
     }
-    UpdateResourceMaterialAnimations();
+    MaterialRegistry::UpdateResourceMaterialAnimations();
     resources = menu_state.resources;
     if (resources != 0)
     {
         uint32 tick = frame_clock.render_tick;
-        sint32 count = (sint32)resources->header.texture_count;
-        sint32 index = 0;
+        sint32 count = resources->header.tex_count;
+        sint32 idx = 0;
         frame_clock.render_tick = frame_clock.menu_tick;
-        while (index < count)
+        while (idx < count)
         {
-            UpdateMaterialAnimationList(menu_state.material_groups[index].animation_entries);
-            count = (sint32)menu_state.resources->header.texture_count;
-            ++index;
+            MaterialAnimationList::UpdateMaterialAnimationList(menu_state.material_grps[idx].animation_entries);
+            count = menu_state.resources->header.tex_count;
+            ++idx;
         }
         frame_clock.render_tick = tick;
     }
-    value = menu_state.fade_frames;
-    if (value != 0)
+    val = menu_state.fade_frames;
+    if (val != 0)
     {
-        --value;
-        menu_state.fade_frames = value;
-        if (value != 0)
-            DrawOverlayRectangle(0, 0xF00140, (sint32)(value << 12) / 15, 0xFFFFFF);
+        --val;
+        menu_state.fade_frames = val;
+        if (val != 0)
+            ScreenRenderState::DrawOverlayRect(0, 0xF00140, (sint32)(val << 12) / 15, 0xFFFFFF);
     }
-    EndDraw();
+    RenderCommands::EndDraw();
     result = menu_state.pacer.Wait(menu_state.last_frame);
     menu_state.last_frame = result;
-    return result;
 }
 
-uint32 ShowLevelCompletion(uint32 level, sint8 mode)
+uint32 CharacterPreview::ShowLevelCompletion(uint32 level, sint8 mode)
 {
     FUNCTION_MARKER(0x8006E344, "SLUS_005.78");
     CharacterPreview preview;
@@ -391,23 +358,21 @@ uint32 ShowLevelCompletion(uint32 level, sint8 mode)
         shown = 1;
         percent = 0;
     }
-    GeneratePassword();
+    MenuState::GeneratePassword();
     if (level_resource.treasure_total == 0)
         level_resource.treasure_total = 1;
     if (shown != 0)
     {
-        uint32 collected = CountSceneTreasure();
-        uint32 total, numerator;
+        uint32 collected = SceneLoader::CountSceneTreasure();
+        uint32 total;
+        sint32 numerator;
         uint16 cumulative;
-        cumulative = (uint16)(level_resource.collected_total + collected);
+        cumulative = level_resource.collected_total + collected;
         total = level_resource.treasure_total;
         numerator = 100u * cumulative + (total >> 1);
         if (total == 0)
-        {
-            fprintf(stderr, "P2: Original division-by-zero trap in 8006E344\n");
-            abort();
-        }
-        percent = (sint32)numerator / (sint32)total;
+            trap(7);
+        percent = numerator / (sint32)total;
         shown = 0;
         level_resource.collected_total = cumulative;
         if (percent >= 101)
@@ -415,69 +380,69 @@ uint32 ShowLevelCompletion(uint32 level, sint8 mode)
         if (next_level != 0)
             next_level = percent >= 80 || (game_flow.mode_flags & 2) != 0 ? 96 : 0;
     }
-    FadeMenuImage(flags);
-    ResetSceneStreams();
-    loaded = (uint32)PollLevelLoadResult(next_level);
-    preview.object = PrepareCompletionCharacter();
-    preview.position[1] = (uint32)-14336;
-    preview.position[0] = 0;
-    preview.position[2] = 430080;
-    preview.velocity[1] = 0;
-    preview.velocity[0] = 0;
-    preview.velocity[2] = (uint32)-4096;
-    menu_state.previous_buttons = ReadGamepadButtons();
+    ScreenRenderState::FadeMenuImage(flags);
+    SceneStream::ResetSceneStreams();
+    loaded = LevelLoader::PollLevelLoadResult(next_level);
+    preview.object = CharacterPreview::PrepareCompletionCharacter();
+    preview.pos.y = -14336;
+    preview.pos.x = 0;
+    preview.pos.z = 430080;
+    preview.velocity.y = 0;
+    preview.velocity.x = 0;
+    preview.velocity.z = -4096;
+    menu_state.prev_buttons = GameplayInput::ReadGamepadButtons();
     menu_state.pacer.fraction = 30;
     menu_state.last_frame = frame_clock.milliseconds;
     for (;;)
     {
-        uint32 height;
-        DrawCompletionFrame(shown, flags, next_level, &preview, mode);
+        sint32 height;
+        CharacterPreview::DrawCompletionFrame(shown, flags, next_level, &preview, mode);
         if (shown < percent)
             ++shown;
-        height = preview.position[2];
-        if ((sint32)height >= 20481)
+        height = preview.pos.z;
+        if (height >= 20481)
         {
-            height += preview.velocity[2];
-            preview.position[2] = height;
-            if ((sint32)height < 20481)
-                preview.position[2] = 20480;
+            height += preview.velocity.z;
+            preview.pos.z = height;
+            if (height < 20481)
+                preview.pos.z = 20480;
         }
         else
         {
-            uint32 previous = ~menu_state.previous_buttons;
-            uint32 pressed = ReadGamepadButtons();
-            menu_state.previous_buttons = pressed;
-            if ((pressed & previous & 64) != 0)
+            uint32 prev = ~menu_state.prev_buttons;
+            uint32 pressed = GameplayInput::ReadGamepadButtons();
+            menu_state.prev_buttons = pressed;
+            if ((pressed & prev & 64) != 0)
             {
                 sint32 voice;
                 table = sound_resources.common_table;
                 tick = frame_clock.render_tick;
                 sound = 0;
                 gameplay_input.release_mask = 64;
-                if (table != 0 && (sint32)table->header.count > 25)
+                if (table != 0 && table->header.count > 25)
                     sound = table->samples + 25;
                 frame_clock.render_tick = frame_clock.menu_tick;
-                voice = sound_effects.SelectVoice((uint32)-1, sound, 4);
+                voice = sound_effects.SelectVoice(-1, sound, 4);
                 if (voice >= 0)
-                    PlaySoundEffect(sound, (uint16)voice, 0, 0, 0, (sint16)(sound_settings.effects_volume), 0);
+                    SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
                 frame_clock.render_tick = tick;
                 break;
             }
         }
         if ((loaded & 255) == 0)
-            loaded = (uint32)PollLevelLoadResult(next_level);
+            loaded = LevelLoader::PollLevelLoadResult(next_level);
         frame_clock.menu_tick = frame_clock.menu_tick + 1u;
     }
     if ((loaded & 255) == 0)
     {
-        DrawLoadingFrame();
-        while (PollLevelLoadResult(next_level) == 0)
+        CharacterPreview::DrawLoadingFrame();
+        while (LevelLoader::PollLevelLoadResult(next_level) == 0)
         {
         }
     }
-    ActivateSceneSection();
+    SceneStream::ActivateSceneSection();
     table = sound_resources.scene_table;
-    sound = table != 0 && (sint32)table->header.count > 0 ? table->samples : 0;
-    sound_effects.Queue(sound, 0, 0, 0, sound_settings.effects_volume, 4);
-    return (uint32)next_level;
+    sound = table != 0 && table->header.count > 0 ? table->samples : 0;
+    sound_effects.Queue(sound, 0, 0, 0, (uint16)sound_settings.effects_volume, 4);
+    return next_level;
 }

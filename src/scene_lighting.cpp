@@ -1,8 +1,10 @@
+#include "scene_lighting.h"
 #include "game.h"
+#include "psx_gte.h"
 
 SceneLighting scene_lighting = {0};
 
-void MarkSceneLightingDirty(const SceneLight *light)
+void SceneLighting::MarkSceneLightingDirty(const SceneLight *light)
 {
     FUNCTION_MARKER(0x8002E00C, "SLUS_005.78");
     SceneNode *node;
@@ -21,7 +23,7 @@ void MarkSceneLightingDirty(const SceneLight *light)
         do
         {
             actor = (AnimatedObject *)node;
-            if ((sint16)actor->metadata32 != 0)
+            if (actor->face_count != 0)
             {
                 flags = actor->flags;
                 if ((flags & 1) == 0)
@@ -29,31 +31,31 @@ void MarkSceneLightingDirty(const SceneLight *light)
                     result = flags | 1;
                     if (mark_all == 0)
                     {
-                        x = actor->world_position[0];
-                        y = actor->world_position[1];
-                        z = actor->world_position[2];
+                        x = actor->world_pos.x;
+                        y = actor->world_pos.y;
+                        z = actor->world_pos.z;
                         a = x;
                         b = y;
                         c = z;
-                        radius = actor->metadata_words72[0];
-                        x = light->source.position[0];
+                        radius = actor->bounds.radius;
+                        x = light->src.pos.x;
                         x -= a;
-                        y = light->source.position[1];
+                        y = light->src.pos.y;
                         y -= b;
-                        z = light->source.position[2] - c;
+                        z = light->src.pos.z - c;
                         radius += light->radius << 5;
-                        threshold = (uint32)(((sint64)(sint32)radius * (sint32)radius) >> 12);
-                        x = (uint32)((sint32)x >> 6);
-                        y = (uint32)((sint32)y >> 6);
-                        z = (uint32)((sint32)z >> 6);
+                        threshold = mul12((sint32)radius, (sint32)radius);
+                        x = (sint32)x >> 6;
+                        y = (sint32)y >> 6;
+                        z = (sint32)z >> 6;
                         if (x * x + y * y + z * z >= threshold)
                         {
-                            x = light->prev_position[0] - a;
-                            y = light->prev_position[1] - b;
-                            z = light->prev_position[2] - c;
-                            x = (uint32)((sint32)x >> 6);
-                            y = (uint32)((sint32)y >> 6);
-                            z = (uint32)((sint32)z >> 6);
+                            x = light->prev_pos.x - a;
+                            y = light->prev_pos.y - b;
+                            z = light->prev_pos.z - c;
+                            x = (sint32)x >> 6;
+                            y = (sint32)y >> 6;
+                            z = (sint32)z >> 6;
                             if (x * x + y * y + z * z >= threshold)
                                 goto next_first;
                         }
@@ -76,30 +78,30 @@ void MarkSceneLightingDirty(const SceneLight *light)
             result = mesh->flags & 1;
             if (result != 0)
                 goto next_second;
-            x = light->source.position[0];
-            x -= mesh->position[0];
-            y = light->source.position[1];
-            y -= mesh->position[1];
-            z = light->source.position[2];
-            z -= mesh->position[2];
+            x = light->src.pos.x;
+            x -= (uint32)mesh->pos.x;
+            y = light->src.pos.y;
+            y -= (uint32)mesh->pos.y;
+            z = light->src.pos.z;
+            z -= (uint32)mesh->pos.z;
             radius = node->state_flags;
             radius += light->radius;
             threshold = (radius * radius) >> 2;
-            x = (uint32)((sint32)x >> 6);
-            y = (uint32)((sint32)y >> 6);
-            z = (uint32)((sint32)z >> 6);
+            x = (sint32)x >> 6;
+            y = (sint32)y >> 6;
+            z = (sint32)z >> 6;
             result = x * x + y * y + z * z < threshold;
             if (result == 0)
             {
-                x = light->prev_position[0];
-                x -= mesh->position[0];
-                y = light->prev_position[1];
-                y -= mesh->position[1];
-                z = light->prev_position[2];
-                z -= mesh->position[2];
-                x = (uint32)((sint32)x >> 6);
-                y = (uint32)((sint32)y >> 6);
-                z = (uint32)((sint32)z >> 6);
+                x = light->prev_pos.x;
+                x -= (uint32)mesh->pos.x;
+                y = light->prev_pos.y;
+                y -= (uint32)mesh->pos.y;
+                z = light->prev_pos.z;
+                z -= (uint32)mesh->pos.z;
+                x = (sint32)x >> 6;
+                y = (sint32)y >> 6;
+                z = (sint32)z >> 6;
                 result = x * x + y * y + z * z < threshold;
                 if (result == 0)
                     goto next_second;
@@ -112,7 +114,7 @@ void MarkSceneLightingDirty(const SceneLight *light)
     }
 }
 
-void UpdateSceneLights()
+void SceneLighting::UpdateSceneLights()
 {
     uint32 result;
     SceneLight *light;
@@ -127,14 +129,14 @@ void UpdateSceneLights()
     uint8 byte_flags;
     FUNCTION_MARKER(0x8002E344, "SLUS_005.78");
     light = scene_lighting.lights;
-    scene_lighting.directional_count = (uint8)(0);
+    scene_lighting.directional_count = 0;
     while (light != 0)
     {
         flags = light->event_flags;
         if ((flags & 4) != 0)
         {
             kind = light->event_id;
-            light->event_flags = (uint8)(flags & 0xFB);
+            light->event_flags = flags & 0xFB;
             kind = ((kind >> 12) & 31) + 39;
             if (kind == 47)
                 kind = (flags & 8) != 0 ? 42 : 43;
@@ -146,8 +148,8 @@ void UpdateSceneLights()
                     if ((byte_flags & 1) == 0)
                     {
                         flags = light->event_flags;
-                        light->flags = (uint8)(byte_flags | 1);
-                        light->event_flags = (uint8)(flags | 1);
+                        light->flags = byte_flags | 1;
+                        light->event_flags = flags | 1;
                     }
                     break;
                 case 43:
@@ -156,65 +158,63 @@ void UpdateSceneLights()
                     if ((byte_flags & 1) != 0)
                     {
                         flags = light->event_flags;
-                        light->flags = (uint8)(byte_flags & 0xFE);
-                        light->event_flags = (uint8)(flags | 1);
+                        light->flags = byte_flags & 0xFE;
+                        light->event_flags = flags | 1;
                     }
                     break;
                 case 51:
                     byte_flags = light->flags;
                     flags = light->event_flags;
-                    light->flags = (uint8)(byte_flags ^ 1);
-                    light->event_flags = (uint8)(flags | 1);
+                    light->flags = byte_flags ^ 1;
+                    light->event_flags = flags | 1;
                     break;
                 default:
                     break;
             }
         }
         uint32 *event_slots[1] = {&light->event_id};
-        if ((ApplySceneEvents(event_slots, 1) << 24) != 0)
-            light->event_flags = (uint8)(light->event_flags | 4);
+        if ((SceneEvents::ApplySceneEvents(event_slots, 1) << 24) != 0)
+            light->event_flags = light->event_flags | 4;
         flags = light->event_flags;
         if ((flags & 1) != 0)
         {
-            light->event_flags = (uint8)(flags & 0xFE);
+            light->event_flags = flags & 0xFE;
             if (updated == 0)
-                MarkSceneLightingDirty(light);
+                SceneLighting::MarkSceneLightingDirty(light);
             if ((light->event_flags & 2) != 0)
             {
-                x = light->prev_position[0];
-                y = light->prev_position[1];
-                z = light->prev_position[2];
-                light->source.position[0] = x;
-                light->source.position[1] = y;
-                light->source.position[2] = z;
+                light->src.pos = light->prev_pos;
             }
             else
             {
                 updated = 1;
-                if (light->prev_position[0] + 26754 > 0xD103 || light->prev_position[1] + 26754 > 0xD103 || light->prev_position[2] + 26754 > 0xD103)
+                if ((uint32)light->prev_pos.x + 26754 > 0xD103 || (uint32)light->prev_pos.y + 26754 > 0xD103 || (uint32)light->prev_pos.z + 26754 > 0xD103)
                 {
                     for (;;)
                     {
-                        x = light->prev_position[0];
-                        z = light->prev_position[2];
-                        light->prev_position[0] = (uint32)((sint32)x >> 1);
-                        y = light->prev_position[1];
-                        x = light->prev_position[0];
-                        z = (uint32)((sint32)z >> 1);
-                        light->prev_position[2] = z;
-                        light->prev_position[1] = (uint32)((sint32)y >> 1);
+                        x = light->prev_pos.x;
+                        z = light->prev_pos.z;
+                        light->prev_pos.x = (sint32)x >> 1;
+                        y = light->prev_pos.y;
+                        x = light->prev_pos.x;
+                        z = (sint32)z >> 1;
+                        light->prev_pos.z = z;
+                        light->prev_pos.y = (sint32)y >> 1;
                         if (x + 26754 > 0xD103)
                             continue;
-                        if (light->prev_position[1] + 26754 > 0xD103)
+                        if ((uint32)light->prev_pos.y + 26754 > 0xD103)
                             continue;
                         if (z + 26754 <= 0xD103)
                             break;
                     }
                 }
-                VectorNormalS((VECTOR *)light->prev_position, &light->source.direction);
+                {
+                    VECTOR n_input = {light->prev_pos.x, light->prev_pos.y, light->prev_pos.z, 0};
+                    VectorNormalS(&n_input, &light->src.dir);
+                }
             }
         }
-        result = ((uint32)(light->flags & 1) << 8) | ((uint32)(light->event_flags & 2) << 16);
+        result = ((light->flags & 1) << 8) | ((light->event_flags & 2) << 16);
         if (result == 0)
         {
             count = scene_lighting.directional_count;
@@ -223,13 +223,13 @@ void UpdateSceneLights()
             {
                 x = light->color[0];
                 slot = count;
-                scene_lighting.colors[slot] = (uint16)x;
-                scene_lighting.colors[slot + 3] = (uint16)light->color[1];
+                scene_lighting.color_matrix.m[0][slot] = x;
+                scene_lighting.color_matrix.m[1][slot] = light->color[1];
                 count = scene_lighting.directional_count;
                 z = light->color[2];
                 result = count + 1;
-                scene_lighting.directional_count = (uint8)(result);
-                scene_lighting.colors[slot + 6] = (uint16)z;
+                scene_lighting.directional_count = result;
+                scene_lighting.color_matrix.m[2][slot] = z;
             }
         }
         light = (SceneLight *)light->links.registry_next;
@@ -241,34 +241,14 @@ void UpdateSceneLights()
     xport_gte_write_control(13, x << 4);
     xport_gte_write_control(14, y << 4);
     xport_gte_write_control(15, z << 4);
-    x = xport_load_le32((const uint8 *)scene_lighting.colors + 0);
-    y = xport_load_le32((const uint8 *)scene_lighting.colors + 4);
-    xport_gte_write_control(16, x);
-    xport_gte_write_control(17, y);
-    x = xport_load_le32((const uint8 *)scene_lighting.colors + 8);
-    y = xport_load_le32((const uint8 *)scene_lighting.colors + 12);
-    z = xport_load_le32((const uint8 *)scene_lighting.colors + 16);
-    xport_gte_write_control(18, x);
-    xport_gte_write_control(19, y);
-    xport_gte_write_control(20, z);
+    SetColorMatrix(&scene_lighting.color_matrix);
 }
 
-uint32 SetLightingBounds(const uint32 *origin, sint32 radius)
-{
-    uint32 flags;
-    FUNCTION_MARKER(0x8002E824, "SLUS_005.78");
-    flags = game_flow.transition_flags;
-    scene_lighting.bounds_origin = origin;
-    scene_lighting.bounds_radius = (sint16)radius;
-    game_flow.transition_flags = flags & 0xFFFFFFFE;
-    return 0xFFFFFFFE;
-}
-
-uint32 SelectObjectLights()
+void SceneLighting::SelectObjectLights()
 {
     FUNCTION_MARKER(0x8002E684, "SLUS_005.78");
     uint32 table = 0;
-    uint16 *output = scene_lighting.transforms.direction_output;
+    uint32 row = 0;
     SceneLight *light;
     if (scene_lighting.skip_transform == 0)
     {
@@ -279,14 +259,14 @@ uint32 SelectObjectLights()
             {
                 if ((light->event_flags & 2) != 0)
                 {
-                    uint32 radius = (uint32)scene_lighting.bounds_radius + light->radius;
+                    uint32 radius = scene_lighting.bounds_radius + light->radius;
                     uint32 extent = radius << 5;
-                    const uint32 *origin = scene_lighting.bounds_origin;
-                    uint32 dx = light->source.position[0] - origin[0];
-                    uint32 dy = light->source.position[1] - origin[1];
-                    uint32 dz = light->source.position[2] - origin[2];
+                    const sint32 *origin = scene_lighting.bounds_origin;
+                    uint32 dx = (uint32)light->src.pos.x - origin[0];
+                    uint32 dy = (uint32)light->src.pos.y - origin[1];
+                    uint32 dz = (uint32)light->src.pos.z - origin[2];
                     sint32 sx, sy, sz;
-                    uint32 distance;
+                    sint32 distance;
                     sint32 limit;
                     if (dx + extent > (radius << 6) || dy + extent > (radius << 6) || dz + extent > (radius << 6))
                         goto next_light;
@@ -294,68 +274,78 @@ uint32 SelectObjectLights()
                     sy = (sint32)dy >> 6;
                     sz = (sint32)dz >> 6;
                     distance = (uint32)((sint64)sx * sx) + (uint32)((sint64)sy * sy) + (uint32)((sint64)sz * sz);
-                    limit = (sint32)((uint64)((sint64)(sint32)extent * (sint32)extent) >> 12);
-                    if (limit < (sint32)distance)
+                    limit = (uint64)mul12((sint32)extent, (sint32)extent);
+                    if (limit < distance)
                         goto next_light;
                     scene_lighting.point_lights[table] = light;
                     ++table;
                 }
-                output += 3;
-                if (output == scene_lighting.transforms.direction_output + 9)
+                ++row;
+                if (row == 3)
                     break;
             }
         next_light:
             light = (SceneLight *)light->links.registry_next;
         }
     }
-    while (output != scene_lighting.transforms.direction_output + 9)
+    while (row != 3)
     {
-        *output = 0;
-        ++output;
+        for (uint32 axis = 0; axis < 3; ++axis)
+            scene_lighting.light_matrix.m[row][axis] = 0;
+        ++row;
     }
     scene_lighting.point_lights[table] = 0;
-    return 0;
 }
 
-uint32 TransformObjectLights(uint32 mode)
+void SceneLighting::SetLightingBounds(const sint32 *origin, sint32 radius)
+{
+    uint32 flags;
+    FUNCTION_MARKER(0x8002E824, "SLUS_005.78");
+    flags = game_flow.transition_flags;
+    scene_lighting.bounds_origin = origin;
+    scene_lighting.bounds_radius = radius;
+    game_flow.transition_flags = flags & 0xFFFFFFFE;
+}
+
+void SceneLighting::TransformObjectLights(uint32 mode)
 {
     FUNCTION_MARKER(0x8002E84C, "SLUS_005.78");
-    uint32 vector[3];
-    const MATRIX *matrix, *parent_matrix, *next_matrix;
+    Vec3 vector;
+    MATRIX *matrix, *parent_matrix, *next_matrix;
     SceneLight *light;
-    uint16 *output = scene_lighting.transforms.direction_output;
+    uint32 row = 0;
     uint32 table;
-    uint32 result;
+
     uint32 i;
     uint32 x, y, z;
     if (scene_lighting.bounds_origin != 0)
     {
-        SelectObjectLights();
+        SceneLighting::SelectObjectLights();
         scene_lighting.bounds_origin = 0;
     }
     if (scene_lighting.skip_transform == 0)
     {
         matrix = &render_view.matrix_cursor->matrix;
-        parent_matrix = (render_view.matrix_cursor->prev != 0 ? &render_view.matrix_cursor->prev->matrix : 0);
+        parent_matrix = render_view.matrix_cursor->prev != 0 ? &render_view.matrix_cursor->prev->matrix : 0;
         for (i = 0; i < 9; ++i)
-            scene_lighting.transforms.fields.inverse_rotation[i] = parent_matrix->m[i % 3][i / 3];
-        for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, xport_load_le32((const uint8 *)&scene_lighting.transforms.fields.inverse_rotation + i * 4));
+            scene_lighting.inverse_matrix.m[i / 3][i % 3] = parent_matrix->m[i % 3][i / 3];
+        {
+            SetRotMatrix(&scene_lighting.inverse_matrix);
+        }
         light = scene_lighting.lights;
         while (light != 0 && (light->event_flags & 2) == 0)
         {
             if ((light->flags & 1) == 0)
             {
-                xport_gte_write_data(0, light->source.position[0]);
-                xport_gte_write_data(1, light->source.position[1]);
+                gte_ldv0(&light->src.dir);
                 xport_gte_execute(0x486012);
                 render_view.transform_result.vx = xport_gte_read_data(25);
                 render_view.transform_result.vy = xport_gte_read_data(26);
                 render_view.transform_result.vz = xport_gte_read_data(27);
-                output[0] = (uint16)(render_view.transform_result.vx);
-                output[1] = (uint16)(render_view.transform_result.vy);
-                output[2] = (uint16)(render_view.transform_result.vz);
-                output += 3;
+                scene_lighting.light_matrix.m[row][0] = render_view.transform_result.vx;
+                scene_lighting.light_matrix.m[row][1] = render_view.transform_result.vy;
+                scene_lighting.light_matrix.m[row][2] = render_view.transform_result.vz;
+                ++row;
             }
             light = (SceneLight *)light->links.registry_next;
         }
@@ -363,114 +353,126 @@ uint32 TransformObjectLights(uint32 mode)
         light = scene_lighting.point_lights[table];
         while (light != 0)
         {
-            parent_matrix = (render_view.matrix_cursor->prev != 0 ? &render_view.matrix_cursor->prev->matrix : 0);
-            vector[0] = light->source.position[0] - (uint32)parent_matrix->t[0];
-            vector[1] = light->source.position[1] - (uint32)parent_matrix->t[1];
-            vector[2] = light->source.position[2] - (uint32)parent_matrix->t[2];
+            parent_matrix = render_view.matrix_cursor->prev != 0 ? &render_view.matrix_cursor->prev->matrix : 0;
+            vector.x = (uint32)light->src.pos.x - parent_matrix->t[0];
+            vector.y = (uint32)light->src.pos.y - parent_matrix->t[1];
+            vector.z = (uint32)light->src.pos.z - parent_matrix->t[2];
             if ((game_flow.transition_flags & 0x200) != 0)
             {
                 next_matrix = &render_view.matrix_cursor->next->matrix;
-                light->relative_position[0] = light->source.position[0] - (uint32)next_matrix->t[0];
-                light->relative_position[1] = light->source.position[1] - (uint32)next_matrix->t[1];
-                light->relative_position[2] = light->source.position[2] - (uint32)next_matrix->t[2];
-                x = light->relative_position[0];
-                y = light->relative_position[1];
-                z = light->relative_position[2];
-                light->relative_position[0] = (sint32)x >> 5;
-                light->relative_position[1] = (sint32)y >> 5;
-                light->relative_position[2] = (sint32)z >> 5;
+                light->relative_pos.x = (uint32)light->src.pos.x - next_matrix->t[0];
+                light->relative_pos.y = (uint32)light->src.pos.y - next_matrix->t[1];
+                light->relative_pos.z = (uint32)light->src.pos.z - next_matrix->t[2];
+                x = light->relative_pos.x;
+                y = light->relative_pos.y;
+                z = light->relative_pos.z;
+                light->relative_pos.x = (sint32)x >> 5;
+                light->relative_pos.y = (sint32)y >> 5;
+                light->relative_pos.z = (sint32)z >> 5;
             }
             else
             {
                 if (table == 0)
                 {
-                    ApplyRotMatrixLV((const VECTOR *)parent_matrix->t, (VECTOR *)scene_lighting.transforms.fields.transformed_origin);
-                    x = scene_lighting.transforms.fields.transformed_origin[0];
-                    y = scene_lighting.transforms.fields.transformed_origin[1];
-                    z = scene_lighting.transforms.fields.transformed_origin[2];
-                    scene_lighting.transforms.fields.transformed_origin[0] = 0u - x;
-                    scene_lighting.transforms.fields.transformed_origin[1] = 0u - y;
-                    scene_lighting.transforms.fields.transformed_origin[2] = 0u - z;
+                    {
+                        VECTOR rotation_input = {parent_matrix->t[0], parent_matrix->t[1], parent_matrix->t[2], 0};
+                        VECTOR rotation_output;
+                        ApplyRotMatrixLV(&rotation_input, &rotation_output);
+                        scene_lighting.origin.x = rotation_output.vx;
+                        scene_lighting.origin.y = rotation_output.vy;
+                        scene_lighting.origin.z = rotation_output.vz;
+                    }
+                    x = scene_lighting.origin.x;
+                    y = scene_lighting.origin.y;
+                    z = scene_lighting.origin.z;
+                    scene_lighting.origin.x = -x;
+                    scene_lighting.origin.y = -y;
+                    scene_lighting.origin.z = -z;
                 }
-                ApplyRotMatrixLV((const VECTOR *)light->source.position, (VECTOR *)vector);
-                x = vector[0];
-                x += scene_lighting.transforms.fields.transformed_origin[0];
-                y = scene_lighting.transforms.fields.transformed_origin[1];
-                z = scene_lighting.transforms.fields.transformed_origin[2];
-                y += vector[1];
-                z += vector[2];
-                vector[0] = x;
-                vector[1] = y;
-                vector[2] = z;
-                light->relative_position[0] = (sint32)x >> 5;
-                light->relative_position[1] = (sint32)vector[1] >> 5;
-                light->relative_position[2] = (sint32)vector[2] >> 5;
+                {
+                    VECTOR rotation_input = {light->src.pos.x, light->src.pos.y, light->src.pos.z, 0};
+                    VECTOR rotation_output;
+                    ApplyRotMatrixLV(&rotation_input, &rotation_output);
+                    vector.x = rotation_output.vx;
+                    vector.y = rotation_output.vy;
+                    vector.z = rotation_output.vz;
+                }
+                x = vector.x;
+                x += (uint32)scene_lighting.origin.x;
+                y = scene_lighting.origin.y;
+                z = scene_lighting.origin.z;
+                y += (uint32)vector.y;
+                z += (uint32)vector.z;
+                vector.x = x;
+                vector.y = y;
+                vector.z = z;
+                light->relative_pos.x = (sint32)x >> 5;
+                light->relative_pos.y = vector.y >> 5;
+                light->relative_pos.z = vector.z >> 5;
             }
-            while (vector[0] + 26754u > 0xD103u || vector[1] + 26754u > 0xD103u || vector[2] + 26754u > 0xD103u)
+            while (vector.x + 26754u > 0xD103u || vector.y + 26754u > 0xD103u || vector.z + 26754u > 0xD103u)
             {
-                x = (uint32)((sint32)vector[0] >> 1);
-                y = (uint32)((sint32)vector[1] >> 1);
-                z = (uint32)((sint32)vector[2] >> 1);
-                vector[0] = x;
-                vector[1] = y;
-                vector[2] = z;
+                x = vector.x >> 1;
+                y = vector.y >> 1;
+                z = vector.z >> 1;
+                vector.x = x;
+                vector.y = y;
+                vector.z = z;
             }
-            VectorNormalS((VECTOR *)vector, (SVECTOR *)output);
+            {
+                VECTOR n_input = {vector.x, vector.y, vector.z, 0};
+                SVECTOR n_output;
+                VectorNormalS(&n_input, &n_output);
+                scene_lighting.light_matrix.m[row][0] = n_output.vx;
+                scene_lighting.light_matrix.m[row][1] = n_output.vy;
+                scene_lighting.light_matrix.m[row][2] = n_output.vz;
+            }
             ++table;
             light = scene_lighting.point_lights[table];
-            output += 3;
+            ++row;
         }
         matrix = &render_view.matrix_cursor->matrix;
-        for (i = 0; i < 5; ++i)
-            xport_gte_write_control(i, xport_load_le32((const uint8 *)matrix + i * 4));
+        {
+            SetRotMatrix(matrix);
+        }
     }
-    result = 0x80000000;
+
     if (mode != 0)
     {
         uint32 flags = scene_lighting.flags;
-        uint16 values[9];
-        for (i = 0; i < 9; ++i)
-            values[i] = scene_lighting.transforms.fields.directions[i];
         scene_lighting.flags = flags | 0x80000000;
         for (i = 0; i < 9; ++i)
-            scene_lighting.transforms.fields.directions[i] = (uint16)(0u - values[i]);
+            scene_lighting.light_matrix.m[i / 3][i % 3] = -(uint16)scene_lighting.light_matrix.m[i / 3][i % 3];
     }
     else
     {
-        result = scene_lighting.flags & 0x7FFFFFFF;
-        scene_lighting.flags = result;
+        scene_lighting.flags = scene_lighting.flags & 0x7FFFFFFF;
     }
-    for (i = 0; i < 5; ++i)
-        xport_gte_write_control(8 + i, xport_load_le32((const uint8 *)scene_lighting.transforms.fields.directions + i * 4));
-    return result;
+    SetLightMatrix(&scene_lighting.light_matrix);
 }
 
-uint32 ApplyVertexLights(const SVECTOR *vertex, uint32 flags)
+void SceneLighting::ApplyVertexLights(const SVECTOR *vertex, uint32 flags)
 {
     FUNCTION_MARKER(0x8002EDE4, "SLUS_005.78");
-    uint32 previous_flags = scene_lighting.flags;
+    uint32 prev_flags = scene_lighting.flags;
     uint32 table = 0;
     SceneLight *light = scene_lighting.point_lights[table];
-    uint32 result = flags ^ previous_flags;
+    uint32 result = flags ^ prev_flags;
     uint32 i;
     if (result != 0)
     {
         scene_lighting.flags = flags;
         if ((sint32)result < 0)
         {
-            uint16 values[9];
             for (i = 0; i < 9; ++i)
-                values[i] = scene_lighting.transforms.fields.directions[i];
-            for (i = 0; i < 9; ++i)
-                scene_lighting.transforms.fields.directions[i] = (uint16)(0u - values[i]);
-            for (i = 0; i < 5; ++i)
-                xport_gte_write_control(8 + i, xport_load_le32((const uint8 *)scene_lighting.transforms.fields.directions + i * 4));
+                scene_lighting.light_matrix.m[i / 3][i % 3] = -(uint16)scene_lighting.light_matrix.m[i / 3][i % 3];
+            SetLightMatrix(&scene_lighting.light_matrix);
         }
         {
             uint32 ambient = flags & 0x7FFFFFFF;
-            uint32 x = (uint32)(sint16)scene_lighting.ambient[0];
-            uint32 y = (uint32)(sint16)scene_lighting.ambient[1];
-            uint32 z = (uint32)(sint16)scene_lighting.ambient[2];
+            uint32 x = (sint16)scene_lighting.ambient[0];
+            uint32 y = (sint16)scene_lighting.ambient[1];
+            uint32 z = (sint16)scene_lighting.ambient[2];
             result = z + ambient;
             xport_gte_write_control(13, (x + ambient) << 4);
             xport_gte_write_control(14, (y + ambient) << 4);
@@ -479,80 +481,80 @@ uint32 ApplyVertexLights(const SVECTOR *vertex, uint32 flags)
     }
     if (light != 0)
     {
-        uint16 *output = scene_lighting.colors + scene_lighting.directional_count;
+        uint32 column = scene_lighting.directional_count;
         do
         {
-            uint32 vx = (uint32)vertex->vx;
-            uint32 x = light->relative_position[0];
-            uint32 vy = (uint32)vertex->vy;
-            uint32 y = light->relative_position[1];
-            uint32 vz = (uint32)vertex->vz;
-            uint32 z = light->relative_position[2];
-            uint32 temporary, distance, attenuation;
+            uint32 vx = vertex->vx;
+            uint32 x = light->relative_pos.x;
+            uint32 vy = vertex->vy;
+            uint32 y = light->relative_pos.y;
+            uint32 vz = vertex->vz;
+            uint32 z = light->relative_pos.z;
+            uint32 tmp;
+            uint32 distance;
+            sint32 attenuation;
             x -= vx;
             y -= vy;
             z -= vz;
             if ((sint32)x < 0)
-                x = 0u - x;
+                x = -x;
             if ((sint32)y < 0)
-                y = 0u - y;
+                y = -y;
             if ((sint32)z < 0)
-                z = 0u - z;
+                z = -z;
             if ((sint32)y < (sint32)x)
             {
-                temporary = x;
+                tmp = x;
                 x = y;
-                y = temporary;
+                y = tmp;
             }
             if ((sint32)y < (sint32)z)
             {
-                temporary = z;
+                tmp = z;
                 z = y;
-                y = temporary;
+                y = tmp;
             }
             else if ((sint32)z < (sint32)x)
             {
-                temporary = z;
+                tmp = z;
                 z = x;
-                x = temporary;
+                x = tmp;
             }
             distance = y;
             if (x != 0)
-                distance = (uint32)((sint32)(36 * x + 48 * z + 120 * y) >> 7);
+                distance = (sint32)(36 * x + 48 * z + 120 * y) >> 7;
             else if (z != 0)
-                distance = (uint32)((sint32)(51 * z + 123 * y) >> 7);
+                distance = (sint32)(51 * z + 123 * y) >> 7;
             result = light->radius;
             attenuation = result - distance;
-            if ((sint32)attenuation <= 0)
+            if (attenuation <= 0)
             {
-                output[0] = (uint16)(0);
-                output[3] = (uint16)(0);
-                output[6] = (uint16)(0);
+                scene_lighting.color_matrix.m[0][column] = 0;
+                scene_lighting.color_matrix.m[1][column] = 0;
+                scene_lighting.color_matrix.m[2][column] = 0;
             }
-            else if ((sint32)attenuation < (sint32)light->attenuation_range)
+            else if (attenuation < (sint32)light->attenuation_range)
             {
-                result = (uint32)((sint32)(attenuation * light->color_scale[0]) >> 2);
-                output[0] = (uint16)(result);
-                result = (uint32)((sint32)(attenuation * light->color_scale[1]) >> 2);
-                output[3] = (uint16)(result);
-                result = (uint32)((sint32)(attenuation * light->color_scale[2]) >> 2);
-                output[6] = (uint16)(result);
+                result = (sint32)(attenuation * light->color_scale[0]) >> 2;
+                scene_lighting.color_matrix.m[0][column] = result;
+                result = (sint32)(attenuation * light->color_scale[1]) >> 2;
+                scene_lighting.color_matrix.m[1][column] = result;
+                result = (sint32)(attenuation * light->color_scale[2]) >> 2;
+                scene_lighting.color_matrix.m[2][column] = result;
             }
             else
             {
                 result = light->color[0];
-                output[0] = (uint16)(result);
+                scene_lighting.color_matrix.m[0][column] = result;
                 result = light->color[1];
-                output[3] = (uint16)(result);
+                scene_lighting.color_matrix.m[1][column] = result;
                 result = light->color[2];
-                output[6] = (uint16)(result);
+                scene_lighting.color_matrix.m[2][column] = result;
             }
             ++table;
             light = scene_lighting.point_lights[table];
-            ++output;
+            ++column;
         } while (light != 0);
-        for (i = 0; i < 5; ++i)
-            xport_gte_write_control(16 + i, xport_load_le32((const uint8 *)scene_lighting.colors + i * 4));
+        SetColorMatrix(&scene_lighting.color_matrix);
     }
-    return result;
 }

@@ -14,3 +14,6 @@ include ../../../../xport/src/platform/web/Makefile
 
 # Preserve nested game calls across browser resource and event waits
 LINK_FLAGS += -sASYNCIFY_STACK_SIZE=65536 -fno-exceptions
+
+# Detect stack overflow before it can corrupt runtime state
+LINK_FLAGS += -sSTACK_OVERFLOW_CHECK=2

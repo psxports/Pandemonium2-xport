@@ -1,62 +1,66 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "sound_settings.h"
 #include "game.h"
 
 SoundSettings sound_settings = {OriginalDefaults::EffectsVolume, OriginalDefaults::MusicVolume};
 
-sint32 SoundSettings::AdjustEffects(sint32 direction)
+sint32 SoundSettings::AdjustEffects(sint32 dir)
 {
-    sint32 value;
+    sint32 val;
     sint32 next;
     FUNCTION_MARKER(0x8005EFF4, "SLUS_005.78");
-    value = (sint16)(effects_volume);
-    if (direction < 0)
+    val = effects_volume;
+    if (dir < 0)
     {
-        if (value <= 0)
-            return value;
-        next = value - 64;
-        effects_volume = (uint16)((uint32)next);
+        if (val <= 0)
+            return val;
+        next = val - 64;
+        effects_volume = next;
         if ((sint16)next < 0)
-            effects_volume = (uint16)(0);
+            effects_volume = 0;
     }
-    else if (value < 4096)
+    else if (val < 4096)
     {
-        next = value + 64;
-        effects_volume = (uint16)((uint32)next);
+        next = val + 64;
+        effects_volume = next;
         if ((sint16)next >= 4097)
-            effects_volume = (uint16)(4096);
+            effects_volume = 4096;
     }
-    return (sint16)(effects_volume);
+    return effects_volume;
 }
 
-sint32 SoundSettings::AdjustMusic(sint32 direction)
+sint32 SoundSettings::AdjustMusic(sint32 dir)
 {
     FUNCTION_MARKER(0x8005F070, "SLUS_005.78");
-    sint32 volume = (sint16)(music_volume);
-    if (direction < 0)
+    sint32 volume = music_volume;
+    if (dir < 0)
     {
         if (volume > 0)
         {
-            sint16 decreased = (sint16)(volume - 64);
-            music_volume = (uint16)(decreased);
+            sint16 decreased = volume - 64;
+            music_volume = decreased;
             if (decreased < 0)
-                music_volume = (uint16)(0);
+                music_volume = 0;
         }
     }
     else if (volume < 4096)
     {
-        sint16 increased = (sint16)(volume + 64);
-        music_volume = (uint16)(increased);
+        sint16 increased = volume + 64;
+        music_volume = increased;
         if (increased >= 4097)
-            music_volume = (uint16)(4096);
+            music_volume = 4096;
     }
-    if (direction != 0)
-        SetSequenceVolume((uint8)sequence_playback.current_handle - 1u, music_volume);
-    return (sint16)(music_volume);
+    if (dir != 0)
+        SequencePlayback::SetSequenceVolume((uint8)sequence_playback.cur_handle - 1u, (uint16)music_volume);
+    return music_volume;
 }
 
 uint32 SoundSettings::SetMusic(uint32 handle, sint16 volume)
 {
     FUNCTION_MARKER(0x8005F124, "SLUS_005.78");
-    music_volume = (uint16)(volume);
-    SetSequenceVolume(handle - 1, volume);
-    return (uint32)(sint16)(music_volume);
+    music_volume = volume;
+    SequencePlayback::SetSequenceVolume(handle - 1, volume);
+    return music_volume;
 }

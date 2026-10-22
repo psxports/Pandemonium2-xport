@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "resource_memory.h"
 #include "game.h"
 
 ResourceMemory resource_memory = {0, 0};
@@ -32,13 +33,13 @@ void FreeGameMemory(void *allocation)
     free(header);
 }
 
-uint32 *AllocateWordList(uint32 mode, uint32 count)
+static uint32 *AllocateWordList(uint32 mode, uint32 count)
 {
     uint32 entries;
     uint32 bytes;
     uint32 *allocation;
     FUNCTION_MARKER(0x8002A3E0, "SLUS_005.78");
-    entries = (uint32)(sint16)(count + 1);
+    entries = (sint16)(count + 1);
     bytes = entries << 2;
     allocation = (uint32 *)AllocateGameMemory(bytes);
     FillBytes((uint8 *)allocation, 255, bytes);
@@ -46,78 +47,74 @@ uint32 *AllocateWordList(uint32 mode, uint32 count)
     return allocation + 1;
 }
 
-void FreeWordList(uint32 mode, uint32 *object)
+static void FreeWordList(uint32 mode, uint32 *object)
 {
     FUNCTION_MARKER(0x8002A448, "SLUS_005.78");
     if (object != 0)
         FreeGameMemory(object - 1);
 }
 
-uint32 FillBytes(uint8 *destination, uint8 value, uint32 count)
+void FillBytes(uint8 *dst, uint8 val, uint32 count)
 {
     FUNCTION_MARKER(0x80066358, "SLUS_005.78");
     while (count != 0)
     {
-        *destination++ = value;
+        *dst++ = val;
         --count;
     }
-    return 0;
 }
 
-uint32 CopyBytes(uint8 *destination, const uint8 *source, uint32 count)
+void CopyBytes(uint8 *dst, const uint8 *src, uint32 count)
 {
-    uint32 result = count;
     FUNCTION_MARKER(0x8006637C, "SLUS_005.78");
     while (count != 0)
     {
-        result = *source++;
-        *destination++ = (uint8)result;
+        *dst++ = *src++;
         --count;
     }
-    return result;
 }
 
-sint32 CompareByteRanges(const uint8 *first_data, const uint8 *second_data, sint32 count)
+static sint32 CompareByteRanges(const uint8 *data0, const uint8 *data1, sint32 count)
 {
     FUNCTION_MARKER(0x80083310, "SLUS_005.78");
-    uint32 first, second;
+    uint8 byte0, byte1;
     for (;;)
     {
-        first = *first_data;
-        second = *second_data;
-        ++first_data;
-        if (first != second)
+        byte0 = *data0;
+        byte1 = *data1;
+        ++data0;
+        if (byte0 != byte1)
         {
-            first = *(first_data - 1);
-            second = *second_data;
-            return (sint32)(first - second);
+            byte0 = *(data0 - 1);
+            byte1 = *data1;
+            return byte0 - byte1;
         }
-        count = (sint32)((uint32)count - 1);
-        ++second_data;
+        count = (uint32)count - 1;
+        ++data1;
         if (count <= 0)
             return 0;
     }
 }
 
-uint32 MoveBytes(uint8 *destination, const uint8 *source, uint32 count)
+void MoveBytes(uint8 *dst, const uint8 *src, uint32 count)
 {
-    uint32 result = (uintptr_t)source < (uintptr_t)destination;
+    uint32 result;
     FUNCTION_MARKER(0x800663AC, "SLUS_005.78");
     if (count != 0)
     {
-        if ((uintptr_t)source < (uintptr_t)destination)
+        if ((uintptr_t)src < (uintptr_t)dst)
         {
-            source += count - 1;
-            destination += count - 1;
+            src += count - 1;
+            dst += count - 1;
             do
             {
-                result = *source;
+                result = *src;
                 --count;
-                *destination = (uint8)result;
+                *dst = result;
                 if (count != 0)
                 {
-                    --source;
-                    --destination;
+                    --src;
+                    --dst;
                 }
             } while (count != 0);
         }
@@ -125,13 +122,12 @@ uint32 MoveBytes(uint8 *destination, const uint8 *source, uint32 count)
         {
             do
             {
-                result = *source;
-                ++source;
+                result = *src;
+                ++src;
                 --count;
-                *destination = (uint8)result;
-                ++destination;
+                *dst = result;
+                ++dst;
             } while (count != 0);
         }
     }
-    return result;
 }

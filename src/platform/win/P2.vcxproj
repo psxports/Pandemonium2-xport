@@ -17,14 +17,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'"><TargetName>P2_debug</TargetName></PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><TargetName>P2</TargetName></PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>true</SDLCheck><PreprocessorDefinitions>GAPI_OGL;_DEBUG;XPORT_ENABLE_AUDIT;XPORT_MEMORY_DIAGNOSTICS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>Disabled</Optimization><RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary><DebugInformationFormat>ProgramDatabase</DebugInformationFormat><ProgramDataBaseFileName>$(IntDir)P2-compile.pdb</ProgramDataBaseFileName><MultiProcessorCompilation>true</MultiProcessorCompilation></ClCompile>
+    <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4146;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>true</SDLCheck><PreprocessorDefinitions>GAPI_OGL;_DEBUG;XPORT_ENABLE_AUDIT;XPORT_MEMORY_DIAGNOSTICS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>Disabled</Optimization><RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary><DebugInformationFormat>ProgramDatabase</DebugInformationFormat><ProgramDataBaseFileName>$(IntDir)P2-compile.pdb</ProgramDataBaseFileName><MultiProcessorCompilation>true</MultiProcessorCompilation></ClCompile>
     <Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><ProgramDatabaseFile>$(IntDir)P2_debug.pdb</ProgramDatabaseFile><ImportLibrary>$(IntDir)P2_debug.lib</ImportLibrary><AdditionalDependencies>opengl32.lib;user32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>false</SDLCheck><PreprocessorDefinitions>GAPI_OGL;NDEBUG;XPORT_DISABLE_FUNCTION_MARKERS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>MinSpace</Optimization><RuntimeLibrary>MultiThreaded</RuntimeLibrary><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><MultiProcessorCompilation>true</MultiProcessorCompilation><AdditionalOptions>/Gw /Gs2147483647 %(AdditionalOptions)</AdditionalOptions><ExceptionHandling>false</ExceptionHandling><BufferSecurityCheck>false</BufferSecurityCheck><OmitFramePointers>true</OmitFramePointers><RuntimeTypeInfo>false</RuntimeTypeInfo><ControlFlowGuard>false</ControlFlowGuard></ClCompile>
+    <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4146;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>false</SDLCheck><PreprocessorDefinitions>GAPI_OGL;NDEBUG;XPORT_DISABLE_FUNCTION_MARKERS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>MinSpace</Optimization><RuntimeLibrary>MultiThreaded</RuntimeLibrary><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><MultiProcessorCompilation>true</MultiProcessorCompilation><AdditionalOptions>/Gw /Gs2147483647 %(AdditionalOptions)</AdditionalOptions><ExceptionHandling>false</ExceptionHandling><BufferSecurityCheck>false</BufferSecurityCheck><OmitFramePointers>true</OmitFramePointers><RuntimeTypeInfo>false</RuntimeTypeInfo><ControlFlowGuard>false</ControlFlowGuard></ClCompile>
     <Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>false</GenerateDebugInformation><ImportLibrary>$(IntDir)P2.lib</ImportLibrary><EnableCOMDATFolding>true</EnableCOMDATFolding><OptimizeReferences>true</OptimizeReferences><AdditionalDependencies>opengl32.lib;user32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies><RandomizedBaseAddress>false</RandomizedBaseAddress><FixedBaseAddress>true</FixedBaseAddress><ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers><GenerateManifest>false</GenerateManifest><DataExecutionPrevention>true</DataExecutionPrevention></Link>
   </ItemDefinitionGroup>
-  <ItemGroup><ClCompile Include="..\..\character_models.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\animation_data.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_path.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_movement.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_vitals.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_contacts.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_controller.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_actions.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\screen_render.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\render_commands.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\fixed_trigonometry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\render_view.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\camera_view.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_preview.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_lighting.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\matrix_rotation.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\collision_geometry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\collision_contact.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\player_interaction.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\game_flow.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\text_render.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\material_resources.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\material_record.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\material_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_section.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\cutscene.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_events.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_streaming.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\level_loading.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\volley_script.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\attack_script.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_speed.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\model_groups.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\actor_behavior.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\actor_lifecycle.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\model_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\level_resource.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_loading.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\resource_groups.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_links.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\original_defaults.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\gameplay_input.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\control_bindings.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sequence_playback.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sound_settings.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\password.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\menu_resources.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\menu_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\frame_pacer.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sound_resources.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sound_channels.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sound_effects.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_operations.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\model_collision.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_motion.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_orientation.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_support.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\character_path_transition.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_graph.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\scene_frame.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\mesh_render.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\mesh_morph.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\node_animation.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\animation_tracks.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\object_resources.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\sprite_objects.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\resource_memory.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\resource_archive.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\frame_clock.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\random_generator.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile><ClCompile Include="..\..\game_main.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+  <ItemGroup>
     
     
     
@@ -56,7 +56,232 @@
       <WholeProgramOptimization>false</WholeProgramOptimization><IntrinsicFunctions>false</IntrinsicFunctions>
     </ClCompile>
   </ItemGroup>
-  <ItemGroup><ClCompile Include="..\..\psyq_bindings.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile></ItemGroup>
+  <ItemGroup></ItemGroup>
+<ItemGroup>
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+  </ItemGroup>
+<ItemGroup>
+    <ClCompile Include="..\..\global.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\actor_binding.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\actor_model_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\actor_placement.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\animated_model_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\animated_object.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\animated_path_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\animation_header.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\animation_track.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\attack_enemy_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\background_resource.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\camera_motion.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\camera_projection.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    
+    <ClCompile Include="..\..\character_contact_pool.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\character_controller.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\character_model_record.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\character_preview.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\cutscene_playback.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\fixed_math.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\frame_clock.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\frame_pacer.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\game_flow_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\game_main.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\gameplay_input.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\hud_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\level_loader.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\level_resource.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\material_animation_list.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\material_catalog.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\material_record.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\material_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\menu_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\mesh_geometry_node.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\model_group_definition.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\model_group_registry.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    
+    <ClCompile Include="..\..\morph_blend_context.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    
+    <ClCompile Include="..\..\object_links.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    
+    <ClCompile Include="..\..\object_speed_definitions.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\original_defaults.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\path_definition.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\psyq_bindings.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\quaternion16.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\random_generator.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\render_commands.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\resource_archive.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\resource_group.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\resource_memory.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_events.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_lighting.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_loader.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_node.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_path.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_section.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_stream.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\scene_trigger.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\screen_render_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\sequence_playback.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    
+    <ClCompile Include="..\..\sound_effects.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\sound_settings.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\sound_table_header.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\sprite_record.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\texture_descriptor.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\ui_text.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\..\volley_enemy_state.cpp"><CompileAs>CompileAsCpp</CompileAs><ExceptionHandling>false</ExceptionHandling></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\global.h" />
+    <ClInclude Include="..\..\actor_binding.h" />
+    <ClInclude Include="..\..\actor_model_registry.h" />
+    <ClInclude Include="..\..\actor_placement.h" />
+    <ClInclude Include="..\..\animated_model_registry.h" />
+    <ClInclude Include="..\..\animated_object.h" />
+    <ClInclude Include="..\..\animated_path_state.h" />
+    <ClInclude Include="..\..\animation_header.h" />
+    <ClInclude Include="..\..\animation_track.h" />
+    <ClInclude Include="..\..\attack_enemy_state.h" />
+    <ClInclude Include="..\..\background_resource.h" />
+    <ClInclude Include="..\..\camera_motion.h" />
+    <ClInclude Include="..\..\camera_projection.h" />
+    
+    <ClInclude Include="..\..\character_contact_pool.h" />
+    <ClInclude Include="..\..\character_controller.h" />
+    <ClInclude Include="..\..\character_model_record.h" />
+    <ClInclude Include="..\..\character_preview.h" />
+    <ClInclude Include="..\..\collision.h" />
+    <ClInclude Include="..\..\cutscene_playback.h" />
+    <ClInclude Include="..\..\fixed_math.h" />
+    <ClInclude Include="..\..\frame_clock.h" />
+    <ClInclude Include="..\..\frame_pacer.h" />
+    <ClInclude Include="..\..\game.h" />
+    <ClInclude Include="..\..\game_flow_state.h" />
+    <ClInclude Include="..\..\gameplay_input.h" />
+    <ClInclude Include="..\..\hud_state.h" />
+    <ClInclude Include="..\..\level_loader.h" />
+    <ClInclude Include="..\..\level_resource.h" />
+    <ClInclude Include="..\..\material_animation_list.h" />
+    <ClInclude Include="..\..\material_catalog.h" />
+    <ClInclude Include="..\..\material_record.h" />
+    <ClInclude Include="..\..\material_registry.h" />
+    <ClInclude Include="..\..\menu_state.h" />
+    <ClInclude Include="..\..\mesh_geometry_node.h" />
+    <ClInclude Include="..\..\model_group_definition.h" />
+    <ClInclude Include="..\..\model_group_registry.h" />
+    
+    <ClInclude Include="..\..\morph_blend_context.h" />
+    
+    <ClInclude Include="..\..\object_links.h" />
+    
+    <ClInclude Include="..\..\object_speed_definitions.h" />
+    <ClInclude Include="..\..\original_defaults.h" />
+    <ClInclude Include="..\..\path_definition.h" />
+    <ClInclude Include="..\..\psyq_bindings.h" />
+    <ClInclude Include="..\..\quaternion16.h" />
+    <ClInclude Include="..\..\random_generator.h" />
+    <ClInclude Include="..\..\render_commands.h" />
+    <ClInclude Include="..\..\resource_archive.h" />
+    <ClInclude Include="..\..\resource_group.h" />
+    <ClInclude Include="..\..\resource_memory.h" />
+    <ClInclude Include="..\..\scene_events.h" />
+    <ClInclude Include="..\..\scene_lighting.h" />
+    <ClInclude Include="..\..\scene_loader.h" />
+    <ClInclude Include="..\..\scene_node.h" />
+    <ClInclude Include="..\..\scene_path.h" />
+    <ClInclude Include="..\..\scene_section.h" />
+    <ClInclude Include="..\..\scene_stream.h" />
+    <ClInclude Include="..\..\scene_trigger.h" />
+    <ClInclude Include="..\..\screen_render_state.h" />
+    <ClInclude Include="..\..\sequence_playback.h" />
+    
+    <ClInclude Include="..\..\sound_effects.h" />
+    <ClInclude Include="..\..\sound_settings.h" />
+    <ClInclude Include="..\..\sound_table_header.h" />
+    <ClInclude Include="..\..\sprite_record.h" />
+    <ClInclude Include="..\..\texture_descriptor.h" />
+    <ClInclude Include="..\..\ui_text.h" />
+    <ClInclude Include="..\..\vector3.h" />
+    <ClInclude Include="..\..\volley_enemy_state.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 <ItemGroup><ClCompile Include="..\..\..\..\xport\src\psx_mdec.c" /><ClCompile Include="..\..\..\..\xport\src\psx_press.c" /><ClCompile Include="..\..\..\..\xport\src\psx_vlc.c" /><ClCompile Include="..\..\..\..\xport\src\psx_stream.c" /></ItemGroup>
 </Project>

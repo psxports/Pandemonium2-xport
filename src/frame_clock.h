@@ -1,28 +1,25 @@
 #ifndef FRAME_CLOCK_H
 #define FRAME_CLOCK_H
-
 #include <stddef.h>
 
 #include "psx.h"
 
+class FrameClock;
+
 class FrameClock
 {
 public:
-    unsigned int milliseconds;
-    unsigned int frame_start;
-    unsigned int render_tick;
-    unsigned int menu_tick;
-    unsigned int event_handle;
+    uint32 milliseconds;
+    uint32 frame_start;
+    uint32 render_tick;
+    uint32 menu_tick;
+    uint32 event_handle;
+
+    static void InitializeGameClock(void);
+    static void ShutdownGameClock(void);
+    static sint32 AdvanceGameClock(void);
 };
 
 extern FrameClock frame_clock;
-
-sint32 AdvanceGameClock();
-
-extern "C"
-{
-    void InitializeGameClock(void);
-    void ShutdownGameClock(void);
-}
 
 #endif

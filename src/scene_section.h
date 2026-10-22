@@ -1,38 +1,73 @@
 #ifndef SCENE_SECTION_H
 #define SCENE_SECTION_H
+#include <stddef.h>
 
 #include "psx.h"
+#include "material_catalog.h"
 #include "object_links.h"
-#include "material_resources.h"
 
 struct ActorBinding;
-struct AnimatedPathState;
-struct BackgroundResource;
-struct SceneSequenceBundle;
-struct MaterialRecord;
-struct MeshLighting;
-struct ScenePath;
-struct PathTransform;
-struct SceneLight;
-struct MeshGeometryNode;
-struct MeshFace;
-struct MeshVertex;
-union CollisionTransform;
-struct AnimationHeader;
-struct PositionedBillboardNode;
-struct MeshPartNode;
-struct SphereNode;
 struct ActorPlacement;
 struct AnimatedObject;
+struct AnimatedPathState;
+struct AnimationHeader;
+struct AnimationTrack;
+struct BackgroundResource;
+struct CollisionTransform;
+struct MeshFace;
+struct MeshGeometryNode;
+struct MeshLighting;
+struct MeshPartNode;
+struct MeshVertex;
+struct PathTransform;
+struct PositionedBillboardNode;
+struct SceneLight;
+struct SceneNode;
+struct SceneObjectName;
+struct ScenePath;
+struct SceneSequenceBundle;
 struct SceneTrigger;
+struct SphereNode;
+struct SpriteRecord;
 
-struct SceneObjectName
+struct EncodedSectionHeader;
+struct SceneSection;
+
+// Serialized header precedes the section payload
+struct EncodedSectionHeader
 {
-    char prefix[2];
+    uint32 registry_offset;
+    uint32 sibling_offset;
+    uint32 child_offset;
     uint8 kind;
+    uint8 flags;
+    sint8 section_idx;
+    sint8 pal_bank;
+    sint16 transition_scale;
+    uint16 state_flags;
+    uint32 data_offset;
+    uint32 metadata;
+    uint32 object_offsets[16];
+    uint32 lighting_offset;
+    uint16 collected_count;
+    uint16 metadata_halfword;
+    uint32 transient_registry;
+    uint32 transient_sibling;
+    uint32 transient_child;
+    uint32 reserved112;
+    uint16 ambient[4];
+    uint32 background_offset;
+    uint32 sequence_offset;
+    uint32 resource_identity;
+    uint32 background_top_color;
+    uint32 background_bottom_color;
+    uint32 far_distance;
+    uint32 fog_near;
+    uint32 fog_far;
+    EncodedMaterialResourceHeader materials;
 };
 
-typedef char SceneObjectNameBinaryLayout[(sizeof(SceneObjectName) == 3) ? 1 : -1];
+typedef char EncodedSectionHeaderSize[(sizeof(EncodedSectionHeader) == 188) ? 1 : -1];
 
 // Native section state borrows immutable bytes from its section buffer
 struct SceneSection
@@ -40,8 +75,8 @@ struct SceneSection
     ObjectLinks links;
     uint8 kind;
     uint8 flags;
-    sint8 section_index;
-    sint8 palette_bank;
+    sint8 section_idx;
+    sint8 pal_bank;
     sint16 transition_scale;
     uint16 state_flags;
     uint8 *data;
@@ -67,8 +102,8 @@ struct SceneSection
     MeshVertex *vertex_storage;
     uint32 vertex_count;
     // Own cached transforms shared by collision and animation views
-    CollisionTransform *collision_storage;
-    uint32 collision_count;
+    CollisionTransform *col_storage;
+    uint32 col_count;
     // Own mutable material lists including their packed render start ticks
     uint32 *material_animation_words;
     uint32 material_animation_word_count;
@@ -93,30 +128,35 @@ struct SceneSection
     AnimatedObject *animated_objects;
     uint32 animated_object_count;
     // Own resource sprites independently of the reusable effect pool
-    SpriteRecord *sprites;
-    uint32 sprite_count;
+    SpriteRecord *sprs;
+    uint32 spr_count;
     // Own independent sprite extent tracks with their immutable key payloads
-    AnimationTrack **sprite_extent_tracks;
-    uint32 sprite_extent_track_count;
+    AnimationTrack **spr_extent_tracks;
+    uint32 spr_extent_track_count;
     // Own unique zones; the auxiliary registry shares these records
     SceneTrigger *triggers;
     uint32 trigger_count;
     // Own contiguous runtime state arrays in original list order
     ActorBinding *actor_bindings;
+    // Source list offset consumed by Relocate
+    uint32 actor_source_offset;
     AnimatedPathState *animated_paths;
     uint16 collected_count;
     uint16 metadata_halfword;
     ObjectLinks transient_links;
-    uint32 runtime_words[3];
+    uint16 ambient[4];
     BackgroundResource *background;
     // Borrow the stream-owned bundle only when a sequence was loaded
     SceneSequenceBundle *sequence_bundle;
     uint32 resource_identity;
     uint32 background_top_color;
     uint32 background_bottom_color;
-    uint32 origin[3];
-    MaterialResourceHeader materials;
-    MeshLighting *lighting_records;
+    // Camera range and fog depth interval
+    uint32 far_distance;
+    uint32 fog_near;
+    uint32 fog_far;
+    MaterialCatalog materials;
+    MeshLighting *lighting_recs;
     uint32 lighting_count;
     // Own packed path keys and their easing prefixes
     uint8 *path_key_data;
@@ -125,13 +165,13 @@ struct SceneSection
     // Own mutable definition matrices and surface displacement
     PathTransform *definition_transforms;
 
-    void Relocate(const MaterialResourceHeader *resource);
-    uint32 Activate();
+    const ScenePath *FindPath(sint32 idx) const;
     sint32 FindObjectId(const SceneObjectName *name) const;
-    const ScenePath *FindPath(sint32 index) const;
     const ScenePath *FindDefaultPath() const;
+    static uint32 GetSectionRespawnForm(const SceneSection *section);
+    void Activate();
+    static void UpdateSceneObjects(void);
+    void Relocate(const MaterialCatalog *resource);
 };
-
-extern "C" uint32 GetSectionRespawnForm(const SceneSection *section);
 
 #endif

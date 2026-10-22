@@ -1,22 +1,27 @@
 #ifndef ORIGINAL_DEFAULTS_H
 #define ORIGINAL_DEFAULTS_H
+#include <stddef.h>
 
 #include "psx.h"
 #include "psx_spu.h"
 
+struct LevelDefinition;
+struct ProgressionEntry;
+struct OriginalDefaults;
+
 struct LevelDefinition
 {
-    unsigned short level_id;
-    unsigned short resource_asset;
-    unsigned short image_asset;
-    unsigned short sound_asset;
-    unsigned int preload_both_characters;
+    uint16 level_id;
+    uint16 resource_asset;
+    uint16 image_asset;
+    uint16 sound_asset;
+    uint32 preload_both_characters;
 };
 
 struct ProgressionEntry
 {
-    signed char level;
-    signed char stage;
+    sint8 level;
+    sint8 stage;
 };
 
 struct OriginalDefaults
@@ -25,8 +30,6 @@ struct OriginalDefaults
     {
         RandomSeed = 12345,
         VideoMode = 0,
-        GuestStackTop = 0x200000,
-        GuestStackReserve = 0x8000,
         RenderMatrixCursorOffset = 0x1F800044,
         StartupImageReadBytes = 14336,
         BehaviorBundleReadBytes = 4096,
@@ -61,23 +64,24 @@ struct OriginalDefaults
         MenuImageAsset = -1
     };
 
-    static const uint32 SceneContextIdentity;
-    static const SpuSequenceScheduler SequenceSchedulerStartup;
-    static const SpuSequenceClock SequenceClockStartup;
-    static const SpuNativeTransferState SpuTransferStartup;
-    static const unsigned char ScratchpadStartup[1024];
-    static const unsigned char ControlSchemes[24][4];
-    static const unsigned char SoundVoiceOrder[8];
-    static const sint32 InteractionWave[16];
-    static const signed char DemoLevels[3];
-    static const signed char DemoForms[3];
-    static const PSX_RECT TextureImageRects[10];
-    static const PSX_RECT StartupImageRect;
-    static const PSX_RECT MenuImageRect;
-    static const ProgressionEntry Progression[20];
-    static const unsigned int HubSections[20];
-    static const unsigned int ResourceMemoryWords[6];
-    static const LevelDefinition Levels[22];
+    static const uint32 scene_context_identity;
+    static const SpuSequenceScheduler sequence_scheduler_startup;
+    static const SpuSequenceClock sequence_clock_startup;
+    static const SpuNativeTransferState spu_transfer_startup;
+    static const uint8 scratchpad_startup[1024];
+    static const uint32 MathResult;
+    static const uint8 control_schemes[24][4];
+    static const uint8 sound_voice_order[8];
+    static const sint32 interaction_wave[16];
+    static const sint8 demo_levels[3];
+    static const sint8 demo_forms[3];
+    static const PSX_RECT tex_img_rects[10];
+    static const PSX_RECT startup_img_rect;
+    static const PSX_RECT menu_img_rect;
+    static const ProgressionEntry progression[20];
+    static const uint32 hub_sections[20];
+    static const uint32 resource_memory_words[6];
+    static const LevelDefinition levels[22];
 };
 
 #endif
