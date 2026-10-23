@@ -2760,7 +2760,7 @@ void AnimatedObject::ProbeCharacterSupport()
     }
 }
 
-uint32 AnimatedObject::UpdateActorAimedShot()
+intptr AnimatedObject::UpdateActorAimedShot()
 {
     FUNCTION_MARKER(0x8001EDAC, "SLUS_005.78");
     ActorBinding *cur_state;
@@ -3008,7 +3008,7 @@ finish:
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorAimedShot()
+intptr AnimatedObject::InitializeActorAimedShot()
 {
     FUNCTION_MARKER(0x8001F6AC, "SLUS_005.78");
     if (!object_operations.behaviors[18].plain_handler && !object_operations.behaviors[18].member_handler && !object_operations.behaviors[18].void_member_handler && !object_operations.behaviors[18].factory_handler)
@@ -3020,7 +3020,7 @@ uint32 AnimatedObject::InitializeActorAimedShot()
     return 18;
 }
 
-uint32 AnimatedObject::UpdateVolleyEnemy()
+intptr AnimatedObject::UpdateVolleyEnemy()
 {
     typedef uint32 (AnimatedObject::*VolleyHandler)(const Vec3 &, const Vec3 &, sint32, ActorModelDefinition *, const VolleyScript *);
     static const VolleyHandler volley_handlers[4] = {&AnimatedObject::UpdateVolleyFiring, &AnimatedObject::UpdateVolleyFiring, &AnimatedObject::UpdateVolleyPath, &AnimatedObject::UpdateVolleyFiring};
@@ -3492,7 +3492,7 @@ uint32 AnimatedObject::UpdateVolleyFiring(const Vec3 &origin, const Vec3 &target
     return 1;
 }
 
-uint32 AnimatedObject::InitializeVolleyEnemy()
+intptr AnimatedObject::InitializeVolleyEnemy()
 {
     FUNCTION_MARKER(0x80020C08, "SLUS_005.78");
     {
@@ -3511,7 +3511,7 @@ uint32 AnimatedObject::InitializeVolleyEnemy()
     return 1;
 }
 
-uint32 AnimatedObject::UpdateAttackEnemy()
+intptr AnimatedObject::UpdateAttackEnemy()
 {
     FUNCTION_MARKER(0x80020C6C, "SLUS_005.78");
     ActorModelDefinition *bound_model;
@@ -3759,7 +3759,7 @@ uint32 AnimatedObject::UpdateAttackAnimation(ActorModelDefinition *resource_mode
     return 1;
 }
 
-uint32 AnimatedObject::InitializeAttackEnemy()
+intptr AnimatedObject::InitializeAttackEnemy()
 {
     FUNCTION_MARKER(0x80021678, "SLUS_005.78");
     uint32 result;
@@ -3775,7 +3775,7 @@ uint32 AnimatedObject::InitializeAttackEnemy()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorChaseSpeed()
+intptr AnimatedObject::UpdateActorChaseSpeed()
 {
     FUNCTION_MARKER(0x800216CC, "SLUS_005.78");
     const ActorModelDefinition *speed_model;
@@ -3837,7 +3837,7 @@ uint32 AnimatedObject::UpdateActorChaseSpeed()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorChaseAttack()
+intptr AnimatedObject::UpdateActorChaseAttack()
 {
     FUNCTION_MARKER(0x80021888, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -4013,7 +4013,7 @@ finish:
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorChaseAttack()
+intptr AnimatedObject::InitializeActorChaseAttack()
 {
     FUNCTION_MARKER(0x80021E28, "SLUS_005.78");
     if (!object_operations.behaviors[19].plain_handler && !object_operations.behaviors[19].member_handler && !object_operations.behaviors[19].void_member_handler && !object_operations.behaviors[19].factory_handler)
@@ -4032,7 +4032,7 @@ uint32 AnimatedObject::InitializeActorChaseAttack()
     return 6;
 }
 
-uint32 AnimatedObject::UpdateActorVerticalShot()
+intptr AnimatedObject::UpdateActorVerticalShot()
 {
 
     FUNCTION_MARKER(0x80021E70, "SLUS_005.78");
@@ -4189,7 +4189,7 @@ finish:
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorVerticalShot()
+intptr AnimatedObject::InitializeActorVerticalShot()
 {
     FUNCTION_MARKER(0x80022358, "SLUS_005.78");
     if (!object_operations.behaviors[14].plain_handler && !object_operations.behaviors[14].member_handler && !object_operations.behaviors[14].void_member_handler && !object_operations.behaviors[14].factory_handler)
@@ -4410,10 +4410,10 @@ void AnimatedObject::UpdateActorPathSegMotion()
     }
 }
 
-uint32 AnimatedObject::InitializeActorPathSegMotion()
+intptr AnimatedObject::InitializeActorPathSegMotion()
 {
     FUNCTION_MARKER(0x8002293C, "SLUS_005.78");
-    uint32 result;
+    intptr result;
     const PathDefinition *definition;
     if (!object_operations.behaviors[21].plain_handler && !object_operations.behaviors[21].member_handler && !object_operations.behaviors[21].void_member_handler && !object_operations.behaviors[21].factory_handler)
     {
@@ -4428,7 +4428,7 @@ uint32 AnimatedObject::InitializeActorPathSegMotion()
     }
     definition = path_definition;
     behavior = 21;
-    result = (uintptr_t)definition->pos_track.keys;
+    result = (intptr)definition->pos_track.keys;
     if (result != 0)
     {
         result = flags;
@@ -4440,7 +4440,7 @@ uint32 AnimatedObject::InitializeActorPathSegMotion()
     return result;
 }
 
-uint32 AnimatedObject::UpdateBasicActor()
+intptr AnimatedObject::UpdateBasicActor()
 {
     FUNCTION_MARKER(0x800229A4, "SLUS_005.78");
     Vec3 origin;
@@ -4453,7 +4453,7 @@ uint32 AnimatedObject::UpdateBasicActor()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorPatrolPause()
+intptr AnimatedObject::UpdateActorPatrolPause()
 {
     FUNCTION_MARKER(0x800278E8, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -4510,7 +4510,7 @@ uint32 AnimatedObject::UpdateActorPatrolPause()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorPatrolPause()
+intptr AnimatedObject::InitializeActorPatrolPause()
 {
     FUNCTION_MARKER(0x80027A8C, "SLUS_005.78");
     if (!object_operations.behaviors[20].plain_handler && !object_operations.behaviors[20].member_handler && !object_operations.behaviors[20].void_member_handler && !object_operations.behaviors[20].factory_handler)
@@ -5278,7 +5278,7 @@ finished:
     return;
 }
 
-uint32 AnimatedObject::UpdateActionObject()
+intptr AnimatedObject::UpdateActionObject()
 {
     FUNCTION_MARKER(0x8002995C, "SLUS_005.78");
     const AnimatedObject *owner;
@@ -5584,7 +5584,7 @@ uint32 AnimatedObject::ComputePathBoundaryExcess(const Vec3 &pos) const
     return result;
 }
 
-uint32 AnimatedObject::UpdateForm5Movement()
+intptr AnimatedObject::UpdateForm5Movement()
 {
     FUNCTION_MARKER(0x8002AD4C, "SLUS_005.78");
 
@@ -5637,7 +5637,7 @@ uint32 AnimatedObject::UpdateForm5Movement()
     return result;
 }
 
-uint32 AnimatedObject::InitializeCommonActor()
+intptr AnimatedObject::InitializeCommonActor()
 {
     FUNCTION_MARKER(0x8002AFA8, "SLUS_005.78");
     uint32 result;
@@ -5658,7 +5658,7 @@ uint32 AnimatedObject::InitializeCommonActor()
     return result;
 }
 
-uint32 AnimatedObject::UpdateCommonActor()
+intptr AnimatedObject::UpdateCommonActor()
 {
     FUNCTION_MARKER(0x8002B000, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -5879,7 +5879,7 @@ uint32 AnimatedObject::CollectModelGrpContact(SceneNode *other_node, CollisionCo
     return variant == 10;
 }
 
-uint32 AnimatedObject::UpdateActorVelocity()
+intptr AnimatedObject::UpdateActorVelocity()
 {
     FUNCTION_MARKER(0x8002FB94, "SLUS_005.78");
     uint32 result, speed, cur_state, mag, x, y, z, sq;
@@ -6417,7 +6417,7 @@ uint32 AnimatedObject::ReadObjectImpulseScale() const
     return clip == bound_model->animations[4] ? 5324 : 5734;
 }
 
-uint32 AnimatedObject::UpdateActorReactionSpin()
+intptr AnimatedObject::UpdateActorReactionSpin()
 {
     const PathDefinition *parent;
     FUNCTION_MARKER(0x80030AC8, "SLUS_005.78");
@@ -7699,7 +7699,7 @@ finish_contact:
     return kind != 1;
 }
 
-uint32 AnimatedObject::UpdateActorPathMotion()
+intptr AnimatedObject::UpdateActorPathMotion()
 {
     const PathDefinition *parent;
     AnimationHeader *sel_animation;
@@ -7893,7 +7893,7 @@ movement:
     }
     if (eligible == 0)
         goto zero_velocity;
-    result = (uintptr_t)path_definition->pos_track.keys;
+    result = path_definition->pos_track.keys != 0;
     if (result != 0 && binding->route_dir_mode != 0)
     {
         flags = flags & 0xFFFFF7FF;
@@ -7904,7 +7904,7 @@ movement:
         goto done;
     }
     parent = path_definition;
-    result = (uintptr_t)parent->pos_track.keys;
+    result = parent->pos_track.keys != 0;
     if (result == 0)
         goto zero_velocity;
     if ((parent->flags & 0x40) == 0)
@@ -7998,7 +7998,7 @@ done:
     return result;
 }
 
-uint32 AnimatedObject::ResetActorInstance()
+intptr AnimatedObject::ResetActorInstance()
 {
     AnimationHeader *initial_animation;
     FUNCTION_MARKER(0x80033D7C, "SLUS_005.78");
@@ -8009,7 +8009,7 @@ uint32 AnimatedObject::ResetActorInstance()
     const ActorBinding *kind_binding;
     Vec3 pos0;
     Vec3 pos1;
-    uint32 result;
+    intptr result;
     ActorModelDefinition *definition = 0;
     sint32 kind, sample_frame;
     parent = path_definition;
@@ -8124,7 +8124,7 @@ uint32 AnimatedObject::ResetActorInstance()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorDeath()
+intptr AnimatedObject::UpdateActorDeath()
 {
     FUNCTION_MARKER(0x80034044, "SLUS_005.78");
     void *data;
@@ -8431,7 +8431,7 @@ void AnimatedObject::InitializeActorAction(ActorBinding *binding)
     if (result != 0)
         return;
     parent = path_definition;
-    result = (uintptr_t)parent->pos_track.keys;
+    result = parent->pos_track.keys != 0;
     if (result == 0)
         return;
     parent->SampleActorPos(0, pos0, 64);
@@ -12902,7 +12902,7 @@ void AnimatedObject::ApplyObjectSpeedAction(uint32 action)
     }
 }
 
-uint32 AnimatedObject::UpdateActorTargetPursuit()
+intptr AnimatedObject::UpdateActorTargetPursuit()
 {
     FUNCTION_MARKER(0x8003FDC8, "SLUS_005.78");
     ActorBinding *state;
@@ -12950,7 +12950,7 @@ uint32 AnimatedObject::UpdateActorTargetPursuit()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorTargetPursuit()
+intptr AnimatedObject::InitializeActorTargetPursuit()
 {
     FUNCTION_MARKER(0x8003FF3C, "SLUS_005.78");
     if (!object_operations.behaviors[13].plain_handler && !object_operations.behaviors[13].member_handler && !object_operations.behaviors[13].void_member_handler && !object_operations.behaviors[13].factory_handler)
@@ -13554,7 +13554,7 @@ void AnimatedObject::CapturePathVelocity()
     flags = flags | 0x400;
 }
 
-uint32 AnimatedObject::UpdateAnimatedModelPathMotion()
+intptr AnimatedObject::UpdateAnimatedModelPathMotion()
 {
     FUNCTION_MARKER(0x8004165C, "SLUS_005.78");
     AnimatedPathState *path_state = (AnimatedPathState *)(((const ActorPlacement *)path_definition)->state);
@@ -14080,7 +14080,7 @@ update_pitch:
     }
 }
 
-uint32 AnimatedObject::UpdateAnimatedModelState()
+intptr AnimatedObject::UpdateAnimatedModelState()
 {
     const AnimationHeader *active_animation;
     FUNCTION_MARKER(0x8004264C, "SLUS_005.78");
@@ -14952,7 +14952,7 @@ void AnimatedObject::ResetAnimatedModel()
     AnimatedObject::UpdateAnimatedModelOrientation(sel, this);
 }
 
-uint32 AnimatedObject::HideAnimatedModel()
+intptr AnimatedObject::HideAnimatedModel()
 {
     FUNCTION_MARKER(0x80044230, "SLUS_005.78");
     SceneNode *parent = owner_node;
@@ -14963,7 +14963,7 @@ uint32 AnimatedObject::HideAnimatedModel()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorFacingAttack()
+intptr AnimatedObject::UpdateActorFacingAttack()
 {
     FUNCTION_MARKER(0x8004425C, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -15015,7 +15015,7 @@ uint32 AnimatedObject::UpdateActorFacingAttack()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorFacingAttack()
+intptr AnimatedObject::InitializeActorFacingAttack()
 {
     FUNCTION_MARKER(0x80044444, "SLUS_005.78");
     if (!object_operations.behaviors[8].plain_handler && !object_operations.behaviors[8].member_handler && !object_operations.behaviors[8].void_member_handler && !object_operations.behaviors[8].factory_handler)
@@ -15637,7 +15637,7 @@ void AnimatedObject::FinishCharacterCameraTransition()
     character_pad.flags = character_pad.flags & 0xF7FFFFFF;
 }
 
-uint32 AnimatedObject::UpdateCharacterCameraTransition()
+intptr AnimatedObject::UpdateCharacterCameraTransition()
 {
     const PathDefinition *parent;
     FUNCTION_MARKER(0x80045ED8, "SLUS_005.78");
@@ -17056,7 +17056,7 @@ uint32 AnimatedObject::ResetCharacterForScene(sint32 mode)
     return result;
 }
 
-uint32 AnimatedObject::UpdateCharacterDeathTransition()
+intptr AnimatedObject::UpdateCharacterDeathTransition()
 {
     FUNCTION_MARKER(0x80048DB4, "SLUS_005.78");
     ActorBinding *binding;
@@ -19244,7 +19244,7 @@ done:
     return;
 }
 
-uint32 AnimatedObject::UpdateCharacterMovement()
+intptr AnimatedObject::UpdateCharacterMovement()
 {
     FUNCTION_MARKER(0x8004DCD0, "SLUS_005.78");
     uint32 prev_kind = (uint8)character_pad.motion.state_code;
@@ -21820,7 +21820,7 @@ finish:
     }
 }
 
-uint32 AnimatedObject::UpdateCharacterBehavior()
+intptr AnimatedObject::UpdateCharacterBehavior()
 {
     FUNCTION_MARKER(0x800530A0, "SLUS_005.78");
 
@@ -21959,7 +21959,7 @@ finish:
     return ClampAnimationFrame();
 }
 
-uint32 AnimatedObject::UpdateAlternateCharacterFollow()
+intptr AnimatedObject::UpdateAlternateCharacterFollow()
 {
     CharacterModelRecord *model_rec;
     FUNCTION_MARKER(0x80053704, "SLUS_005.78");
@@ -24565,7 +24565,7 @@ finish_model:
     shadow->node.flags = result;
 }
 
-uint32 AnimatedObject::UpdateActorStationaryShots()
+intptr AnimatedObject::UpdateActorStationaryShots()
 {
     FUNCTION_MARKER(0x8005DE30, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -24609,10 +24609,10 @@ uint32 AnimatedObject::UpdateActorStationaryShots()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorStationaryShots()
+intptr AnimatedObject::InitializeActorStationaryShots()
 {
     FUNCTION_MARKER(0x8005DFB8, "SLUS_005.78");
-    uint32 result;
+    intptr result;
     const PathDefinition *definition;
     if (!object_operations.behaviors[15].plain_handler && !object_operations.behaviors[15].member_handler && !object_operations.behaviors[15].void_member_handler && !object_operations.behaviors[15].factory_handler)
     {
@@ -24621,7 +24621,7 @@ uint32 AnimatedObject::InitializeActorStationaryShots()
     }
     definition = path_definition;
     behavior = 15;
-    result = (uintptr_t)definition->pos_track.keys;
+    result = (intptr)definition->pos_track.keys;
     if (result != 0)
     {
         result = flags | 0x40;
@@ -24631,7 +24631,7 @@ uint32 AnimatedObject::InitializeActorStationaryShots()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorProximityAttack()
+intptr AnimatedObject::UpdateActorProximityAttack()
 {
     FUNCTION_MARKER(0x8005E010, "SLUS_005.78");
     ActorBinding *state;
@@ -24783,10 +24783,10 @@ finish:
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorProximityAttack()
+intptr AnimatedObject::InitializeActorProximityAttack()
 {
     FUNCTION_MARKER(0x8005E418, "SLUS_005.78");
-    uint32 result;
+    intptr result;
     const PathDefinition *definition;
     if (!object_operations.behaviors[10].plain_handler && !object_operations.behaviors[10].member_handler && !object_operations.behaviors[10].void_member_handler && !object_operations.behaviors[10].factory_handler)
     {
@@ -24795,7 +24795,7 @@ uint32 AnimatedObject::InitializeActorProximityAttack()
     }
     definition = path_definition;
     behavior = 10;
-    result = (uintptr_t)definition->pos_track.keys;
+    result = (intptr)definition->pos_track.keys;
     if (result != 0)
     {
         result = flags | 0x40;
@@ -24804,7 +24804,7 @@ uint32 AnimatedObject::InitializeActorProximityAttack()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorRandomPatrol()
+intptr AnimatedObject::UpdateActorRandomPatrol()
 {
     FUNCTION_MARKER(0x8005F154, "SLUS_005.78");
     ActorBinding *state;
@@ -24932,7 +24932,7 @@ uint32 AnimatedObject::UpdateActorRandomPatrol()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorRandomPatrol()
+intptr AnimatedObject::InitializeActorRandomPatrol()
 {
     FUNCTION_MARKER(0x8005F490, "SLUS_005.78");
     uint32 result;
@@ -24947,7 +24947,7 @@ uint32 AnimatedObject::InitializeActorRandomPatrol()
     return result;
 }
 
-uint32 AnimatedObject::UpdateActorPathDetour()
+intptr AnimatedObject::UpdateActorPathDetour()
 {
     uint32 dx, dy;
 
@@ -25102,7 +25102,7 @@ finish_motion:
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorPathDetour()
+intptr AnimatedObject::InitializeActorPathDetour()
 {
     FUNCTION_MARKER(0x8005FADC, "SLUS_005.78");
     uint32 result;
@@ -25123,10 +25123,10 @@ uint32 AnimatedObject::InitializeActorPathDetour()
     void *state = ((const ActorPlacement *)path_definition)->state;
     ActorBinding *binding = (ActorBinding *)state;
     binding->path_pitch_speed = 0;
-    return (uintptr_t)state;
+    return (intptr)state;
 }
 
-uint32 AnimatedObject::UpdateActorVerticalPursuit()
+intptr AnimatedObject::UpdateActorVerticalPursuit()
 {
     FUNCTION_MARKER(0x80060360, "SLUS_005.78");
     ActorModelDefinition *resource_model;
@@ -25224,7 +25224,7 @@ uint32 AnimatedObject::UpdateActorVerticalPursuit()
     return result;
 }
 
-uint32 AnimatedObject::InitializeActorVerticalPursuit()
+intptr AnimatedObject::InitializeActorVerticalPursuit()
 {
     FUNCTION_MARKER(0x80060688, "SLUS_005.78");
     uint32 result;
@@ -25246,7 +25246,7 @@ uint32 AnimatedObject::InitializeActorVerticalPursuit()
     ActorBinding *binding = (ActorBinding *)state;
     binding->path_pitch_speed = 0;
     pitch_scale = 0;
-    return (uintptr_t)state;
+    return (intptr)state;
 }
 
 sint32 AnimatedObject::ResolveObjectSpeed() const
@@ -25281,7 +25281,7 @@ sint32 AnimatedObject::ResolveObjectSpeed() const
     return result != 0 ? result : definition->default_speed;
 }
 
-uint32 AnimatedObject::UpdateAnimatedObjectCommands()
+intptr AnimatedObject::UpdateAnimatedObjectCommands()
 {
     SceneNode *scene_node;
     FUNCTION_MARKER(0x800607BC, "SLUS_005.78");
@@ -25445,7 +25445,7 @@ finish_commands:
     return result;
 }
 
-uint32 AnimatedObject::UpdateSceneScriptVariable()
+intptr AnimatedObject::UpdateSceneScriptVariable()
 {
     FUNCTION_MARKER(0x80060C0C, "SLUS_005.78");
     uint32 *commands[1] = {&event_word};
@@ -25532,7 +25532,7 @@ void AnimatedObject::EmptyObjectBehavior(void)
     FUNCTION_MARKER(0x80061174, "SLUS_005.78");
 }
 
-uint32 AnimatedObject::UpdateSceneAnimation()
+intptr AnimatedObject::UpdateSceneAnimation()
 {
     FUNCTION_MARKER(0x8006117C, "SLUS_005.78");
     uint32 cur_flags, result;
@@ -25548,7 +25548,7 @@ uint32 AnimatedObject::UpdateSceneAnimation()
     return AdvanceTracks(step);
 }
 
-uint32 AnimatedObject::FollowSceneAnimation()
+intptr AnimatedObject::FollowSceneAnimation()
 {
     FUNCTION_MARKER(0x800611E8, "SLUS_005.78");
     AnimatedObject *parent = linked_object;
@@ -25911,11 +25911,11 @@ void AnimatedObject::DecodeModelResource(AnimatedObject **object_slot, uint8 **m
     uint32 storage_bytes = 0;
     for (uint32 idx = 0; idx < rec_count; ++idx)
     {
-        storage_bytes = (storage_bytes + 3u) & ~3u;
+        storage_bytes = (storage_bytes + sizeof(void *) - 1u) & ~(sizeof(void *) - 1u);
         recs[idx].storage_offset = storage_bytes;
         storage_bytes += recs[idx].storage_bytes;
     }
-    storage_bytes = (storage_bytes + 3u) & ~3u;
+    storage_bytes = (storage_bytes + sizeof(void *) - 1u) & ~(sizeof(void *) - 1u);
     uint32 root_flags = root->flags;
     uint32 packed_counts = root->geometry_counts;
     uint32 face_offset = root->polygon_word;

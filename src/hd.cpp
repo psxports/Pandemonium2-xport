@@ -938,7 +938,7 @@ static uint32 hd_pool_slot(const SceneNode *node)
     size_t offset = (size_t)node - (size_t)hd_state.sprite_pool;
     if (offset >= HD_POOL_SLOTS * sizeof(SpriteRecord) || offset % sizeof(SpriteRecord) != 0)
         return HD_NO_POSE;
-    return offset / sizeof(SpriteRecord);
+    return (uint32)(offset / sizeof(SpriteRecord));
 }
 
 static uint32 hd_pool_key(uint64 key)
@@ -4465,14 +4465,6 @@ static bool hd_rebuild_paused_scene(sint32 width, sint32 height)
     {
         if (!hd_frame.active || !hd_frame.collecting || hd_frame.failed)
             return false;
-    }
-    else
-    {
-        PSX_RECT source = {0, render_buffers[render_commands.active_buffer].draw.clip.y, 320, 240};
-        MoveImage(&source, OriginalDefaults::menu_img_rect.x, OriginalDefaults::menu_img_rect.y);
-        DrawSync(0);
-        hd_state.image_valid = false;
-        ++hd_state.image_version;
     }
     hd_state.pause_hd = requested;
     hd_state.pause_width = width;

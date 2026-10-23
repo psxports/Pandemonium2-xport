@@ -11,10 +11,10 @@ uint8 *AllocateGameMemory(uint32 bytes, uint32 storage_bytes)
     resource_memory.allocated_bytes = resource_memory.allocated_bytes + bytes;
     uint32 aligned_bytes = (bytes + 3u) & ~3u;
     uint32 aligned_storage_bytes = storage_bytes != 0 ? (storage_bytes + 3u) & ~3u : aligned_bytes;
-    size_t allocation_bytes = (size_t)aligned_storage_bytes + sizeof(uint32);
+    size_t allocation_bytes = (size_t)aligned_storage_bytes + sizeof(size_t);
     if (allocation_bytes < aligned_storage_bytes)
         return 0;
-    uint32 *allocation = (uint32 *)malloc(allocation_bytes);
+    size_t *allocation = (size_t *)malloc(allocation_bytes);
     if (allocation == 0)
         return 0;
     *allocation = aligned_bytes;
@@ -27,8 +27,8 @@ void FreeGameMemory(void *allocation)
     uint32 bytes;
     FUNCTION_MARKER(0x80064D54, "SLUS_005.78");
     total = resource_memory.allocated_bytes;
-    uint32 *header = (uint32 *)allocation - 1;
-    bytes = *header;
+    size_t *header = (size_t *)allocation - 1;
+    bytes = (uint32)*header;
     resource_memory.allocated_bytes = total - bytes;
     free(header);
 }

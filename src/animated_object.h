@@ -285,9 +285,9 @@ public:
     void UpdateCharacterSupportMotion();
     void ResolveCharacterSupport(uint8 grounded);
     void ProbeCharacterSupport();
-    uint32 UpdateActorAimedShot();
-    uint32 InitializeActorAimedShot();
-    uint32 UpdateVolleyEnemy();
+    intptr UpdateActorAimedShot();
+    intptr InitializeActorAimedShot();
+    intptr UpdateVolleyEnemy();
     void SpawnVolleyProjectile(const VolleyScript *script, const Vec3 &target, sint32 idx);
 
 private:
@@ -295,8 +295,8 @@ private:
     uint32 UpdateVolleyFiring(const Vec3 &origin, const Vec3 &target, sint32 distance, ActorModelDefinition *resource_model, const VolleyScript *script);
 
 public:
-    uint32 InitializeVolleyEnemy();
-    uint32 UpdateAttackEnemy();
+    intptr InitializeVolleyEnemy();
+    intptr UpdateAttackEnemy();
 
 private:
     uint32 UpdateAttackRepeat(const Vec3 &origin, const Vec3 &target, sint32 distance, ActorModelDefinition *resource_model, const AttackScript *script);
@@ -304,18 +304,18 @@ private:
     uint32 UpdateAttackAnimation(ActorModelDefinition *resource_model, const AttackScript *script);
 
 public:
-    uint32 InitializeAttackEnemy();
-    uint32 UpdateActorChaseSpeed();
-    uint32 UpdateActorChaseAttack();
-    uint32 InitializeActorChaseAttack();
-    uint32 UpdateActorVerticalShot();
-    uint32 InitializeActorVerticalShot();
+    intptr InitializeAttackEnemy();
+    intptr UpdateActorChaseSpeed();
+    intptr UpdateActorChaseAttack();
+    intptr InitializeActorChaseAttack();
+    intptr UpdateActorVerticalShot();
+    intptr InitializeActorVerticalShot();
     sint32 FindActorPathSeg() const;
     void UpdateActorPathSegMotion();
-    uint32 InitializeActorPathSegMotion();
-    uint32 UpdateBasicActor();
-    uint32 UpdateActorPatrolPause();
-    uint32 InitializeActorPatrolPause();
+    intptr InitializeActorPathSegMotion();
+    intptr UpdateBasicActor();
+    intptr UpdateActorPatrolPause();
+    intptr InitializeActorPatrolPause();
     static void SpawnActionEffect(AnimatedObject *object, const void *context, uint32 action);
 
 private:
@@ -326,15 +326,15 @@ public:
     static uint32 ActionDistance(const Vec3 &v0, const Vec3 &v1);
     uint32 AdvanceActionEffect(const AnimatedObject *owner, uint32 action, uint32 distance, uint32 *progress_output);
     void UpdateActionEffect(const AnimatedObject *owner, uint32 action);
-    uint32 UpdateActionObject();
+    intptr UpdateActionObject();
 
 private:
     uint32 ComputePathBoundaryExcess(const Vec3 &pos) const;
 
 public:
-    uint32 UpdateForm5Movement();
-    uint32 InitializeCommonActor();
-    uint32 UpdateCommonActor();
+    intptr UpdateForm5Movement();
+    intptr InitializeCommonActor();
+    intptr UpdateCommonActor();
 
 private:
     uint32 GetModelGrpLaunchSpeed() const;
@@ -347,19 +347,19 @@ private:
 
 public:
     uint32 CollectModelGrpContact(SceneNode *other_node, CollisionContact *contact_data);
-    uint32 UpdateActorVelocity();
+    intptr UpdateActorVelocity();
     void ApplyModelGrpContactMotion();
     static void RegisterActorVelocityOperations(void);
     sint16 SampleActorPathHeading() const;
     uint32 ReadObjectImpulseScale() const;
-    uint32 UpdateActorReactionSpin();
+    intptr UpdateActorReactionSpin();
     void UpdateActorShrinkEffect();
     uint32 UpdateActorStateAndTarget(Vec3 &pos, Vec3 &target, uint32 *distance);
     uint32 UpdateActorFacingAndAnimation(const Vec3 *target, const Vec3 &origin, ActorModelDefinition *resource_model);
     uint32 CollectActorContact(SceneNode *other_node, CollisionContact *contact_data);
-    uint32 UpdateActorPathMotion();
-    uint32 ResetActorInstance();
-    uint32 UpdateActorDeath();
+    intptr UpdateActorPathMotion();
+    intptr ResetActorInstance();
+    intptr UpdateActorDeath();
     sint32 ClassifyActorPathDir(const Vec3 &pos, const Vec3 &target) const;
     uint32 UpdateActorTurnaround(ActorBinding *binding, const ActorModelDefinition *resource_model);
     uint32 GetActorContactDamage() const;
@@ -404,8 +404,8 @@ private:
     void ApplyObjectSpeedAction(uint32 action);
 
 public:
-    uint32 UpdateActorTargetPursuit();
-    uint32 InitializeActorTargetPursuit();
+    intptr UpdateActorTargetPursuit();
+    intptr InitializeActorTargetPursuit();
     static AnimatedObject *CloneObjectResource(const AnimatedObject *src);
     uint32 TurnObjectYaw(uint32 target, sint16 step);
     uint32 TurnObjectPitch(uint32 target, sint16 step);
@@ -413,15 +413,15 @@ public:
     void ComputeColResponse(const SceneNode *other_node, uint32 mode, uint32 val);
     uint32 HandleModelCol(SceneNode *other_node, CollisionContact *contact_data);
     void CapturePathVelocity();
-    uint32 UpdateAnimatedModelPathMotion();
+    intptr UpdateAnimatedModelPathMotion();
     static uint32 ApplyModelTravelRotation(SceneNode *object, uint32 distance);
     void ApplyEvents();
     static void UpdateAnimatedModelOrientation(const AnimatedModelDefinition *definition, AnimatedObject *object);
-    uint32 UpdateAnimatedModelState();
+    intptr UpdateAnimatedModelState();
     void ResetAnimatedModel();
-    uint32 HideAnimatedModel();
-    uint32 UpdateActorFacingAttack();
-    uint32 InitializeActorFacingAttack();
+    intptr HideAnimatedModel();
+    intptr UpdateActorFacingAttack();
+    intptr InitializeActorFacingAttack();
     uint32 ReleaseActorInteraction();
     void ApplyInteractionDirectionalInput(uint32 *speed);
     void ApplyActorDirectionalInput(uint32 *speed);
@@ -433,7 +433,7 @@ private:
     void FinishCharacterCameraTransition();
 
 public:
-    uint32 UpdateCharacterCameraTransition();
+    intptr UpdateCharacterCameraTransition();
     void ApplyPathVelocityChange(const PathDefinition *definition);
     void UpdateObjectScenePath(const ScenePath *path, sint32 frame);
     void BeginCharacterCameraTransition(const ScenePath *input_path, uint32 frame_word, uint32 duration_ticks, uint32 kind);
@@ -448,7 +448,7 @@ public:
     sint32 ClassifyCharacterContactResponse() const;
     uint32 CollectCharacterContact(SceneNode *other_node, CollisionContact *contact_data);
     uint32 ResetCharacterForScene(sint32 mode);
-    uint32 UpdateCharacterDeathTransition();
+    intptr UpdateCharacterDeathTransition();
 
 private:
     void UpdateCharacterHorizontalSpeed(uint32 decelerate);
@@ -469,7 +469,7 @@ private:
     void UpdateMovementImpulse(uint32 *move_flags);
 
 public:
-    uint32 UpdateCharacterMovement();
+    intptr UpdateCharacterMovement();
 
 private:
     void LeaveCharacterSupport();
@@ -489,8 +489,8 @@ public:
     void UpdateCharacterFallTimeout();
     uint32 UpdateCharacterDeathState();
     void UpdateCharacterAnimationState();
-    uint32 UpdateCharacterBehavior();
-    uint32 UpdateAlternateCharacterFollow();
+    intptr UpdateCharacterBehavior();
+    intptr UpdateAlternateCharacterFollow();
     void BeginCharacterPathTransition();
     void CancelCharacterPathTransition();
 
@@ -547,26 +547,26 @@ private:
 
 public:
     void UpdateGroundShadow();
-    uint32 UpdateActorStationaryShots();
-    uint32 InitializeActorStationaryShots();
-    uint32 UpdateActorProximityAttack();
-    uint32 InitializeActorProximityAttack();
-    uint32 UpdateActorRandomPatrol();
-    uint32 InitializeActorRandomPatrol();
-    uint32 UpdateActorPathDetour();
-    uint32 InitializeActorPathDetour();
-    uint32 UpdateActorVerticalPursuit();
-    uint32 InitializeActorVerticalPursuit();
+    intptr UpdateActorStationaryShots();
+    intptr InitializeActorStationaryShots();
+    intptr UpdateActorProximityAttack();
+    intptr InitializeActorProximityAttack();
+    intptr UpdateActorRandomPatrol();
+    intptr InitializeActorRandomPatrol();
+    intptr UpdateActorPathDetour();
+    intptr InitializeActorPathDetour();
+    intptr UpdateActorVerticalPursuit();
+    intptr InitializeActorVerticalPursuit();
 
 private:
     sint32 ResolveObjectSpeed() const;
 
 public:
-    uint32 UpdateAnimatedObjectCommands();
-    uint32 UpdateSceneScriptVariable();
+    intptr UpdateAnimatedObjectCommands();
+    intptr UpdateSceneScriptVariable();
     static void EmptyObjectBehavior(void);
-    uint32 UpdateSceneAnimation();
-    uint32 FollowSceneAnimation();
+    intptr UpdateSceneAnimation();
+    intptr FollowSceneAnimation();
     void RelocateResourceMaterials(const MaterialCatalog *resource, const ModelDecodeLayout *layout, MeshFace **polygon_owner, MeshVertex **vertex_owner);
     static void DecodeModelResource(AnimatedObject **object_slot, uint8 **model_owner, const MaterialCatalog *resource, uint32 bytes, MeshFace **polygon_owner, MeshVertex **vertex_owner);
     void AttachAnimation(uint8 *animation_data, uint32 bytes, AnimationHeader *header);

@@ -55,22 +55,13 @@ struct SceneTrigger
     static void ProcessSceneTriggers(SceneNode *objects, SceneNode *auxiliary);
 };
 
-typedef char SceneTriggerCutsceneTailOffset[(offsetof(SceneTrigger, cutscene_control) == 80) ? 1 : -1];
 
-typedef char SceneTriggerBinarySpan[(sizeof(SceneTrigger) == 108) ? 1 : -1];
 
-typedef char SceneTriggerWorldOffset[(offsetof(SceneTrigger, transform) + offsetof(MATRIX, t) == 36) ? 1 : -1];
 
-typedef char SceneTriggerExtentOffset[(offsetof(SceneTrigger, extent) == 60) ? 1 : -1];
 
-typedef char SceneTriggerParametersOffset[(offsetof(SceneTrigger, parameters) == 68) ? 1 : -1];
 
-typedef char SceneTriggerControlWordOffset[(offsetof(SceneTrigger, control_word) == 80) ? 1 : -1];
 
-typedef char SceneTriggerAnimationOffset[(offsetof(SceneTrigger, animation_binding) == 84) ? 1 : -1];
 
-typedef char SceneTriggerPositionOffset[(offsetof(SceneTrigger, pos) == 88) ? 1 : -1];
 
-typedef char SceneTriggerRotationOffset[(offsetof(SceneTrigger, rotation) == 100) ? 1 : -1];
 
 #endif

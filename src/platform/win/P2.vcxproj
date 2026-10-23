@@ -3,24 +3,26 @@
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32"><Configuration>Debug</Configuration><Platform>Win32</Platform></ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32"><Configuration>Release</Configuration><Platform>Win32</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals"><VCProjectVersion>17.0</VCProjectVersion><ProjectGuid>{E9FB7467-3FDD-4A26-932B-23427348EA31}</ProjectGuid><RootNamespace>P2</RootNamespace><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>MultiByte</CharacterSet></PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>MultiByte</CharacterSet><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>MultiByte</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>MultiByte</CharacterSet><WholeProgramOptimization>true</WholeProgramOptimization></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup>
     <UseXcrt Condition="'$(UseXcrt)'==''">false</UseXcrt>
-    <XcrtEnabled Condition="'$(Configuration)|$(Platform)'=='Release|Win32' and '$(UseXcrt)'=='true'">true</XcrtEnabled>
+    <XcrtEnabled Condition="'$(Configuration)'=='Release' and '$(UseXcrt)'=='true'">true</XcrtEnabled>
   </PropertyGroup>
-  <PropertyGroup><OutDir>$(ProjectDir)..\..\..\bin\</OutDir><IntDir>$(ProjectDir)..\..\..\_build\x86\$(Configuration)\</IntDir><LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory><LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand><DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor><LinkIncremental>false</LinkIncremental></PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'"><TargetName>P2_debug</TargetName></PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><TargetName>P2</TargetName></PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+  <PropertyGroup><NativeArch Condition="'$(Platform)'=='Win32'">x86</NativeArch><NativeArch Condition="'$(Platform)'=='x64'">x64</NativeArch><OutDir>$(ProjectDir)..\..\..\bin\</OutDir><IntDir>$(ProjectDir)..\..\..\_build\$(NativeArch)\$(Configuration)\</IntDir><LocalDebuggerWorkingDirectory>$(OutDir)</LocalDebuggerWorkingDirectory><LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand><DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor><LinkIncremental>false</LinkIncremental></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'"><TargetName>P2_debug</TargetName></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'"><TargetName>P2</TargetName></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4146;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>true</SDLCheck><PreprocessorDefinitions>GAPI_OGL;_DEBUG;XPORT_ENABLE_AUDIT;XPORT_MEMORY_DIAGNOSTICS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>Disabled</Optimization><RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary><DebugInformationFormat>ProgramDatabase</DebugInformationFormat><ProgramDataBaseFileName>$(IntDir)P2-compile.pdb</ProgramDataBaseFileName><MultiProcessorCompilation>true</MultiProcessorCompilation></ClCompile>
     <Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><ProgramDatabaseFile>$(IntDir)P2_debug.pdb</ProgramDatabaseFile><ImportLibrary>$(IntDir)P2_debug.lib</ImportLibrary><AdditionalDependencies>opengl32.lib;user32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
     <ClCompile><WarningLevel>Level3</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><DisableSpecificWarnings>4100;4146;4244;4554;%(DisableSpecificWarnings)</DisableSpecificWarnings><SDLCheck>false</SDLCheck><PreprocessorDefinitions>GAPI_OGL;NDEBUG;XPORT_DISABLE_FUNCTION_MARKERS;_CRT_SECURE_NO_WARNINGS;FULL_NAME=&quot;Pandemonium 2&quot;;WND_TITLE=&quot;Pandemonium 2 (xport)&quot;;WND_WIDTH=960;WND_HEIGHT=720;FIELD_RATE=60;FIELD_RATE_NUMERATOR=53693175;FIELD_RATE_DENOMINATOR=897619;XPORT_AUDIO_VBLANK_QUEUE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..;$(ProjectDir)..\..\..\..\xport\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><CompileAs>CompileAsC</CompileAs><Optimization>MinSpace</Optimization><RuntimeLibrary>MultiThreaded</RuntimeLibrary><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions><MultiProcessorCompilation>true</MultiProcessorCompilation><AdditionalOptions>/Gw /Gs2147483647 %(AdditionalOptions)</AdditionalOptions><ExceptionHandling>false</ExceptionHandling><BufferSecurityCheck>false</BufferSecurityCheck><OmitFramePointers>true</OmitFramePointers><RuntimeTypeInfo>false</RuntimeTypeInfo><ControlFlowGuard>false</ControlFlowGuard></ClCompile>
     <Link><SubSystem>Windows</SubSystem><GenerateDebugInformation>false</GenerateDebugInformation><ImportLibrary>$(IntDir)P2.lib</ImportLibrary><EnableCOMDATFolding>true</EnableCOMDATFolding><OptimizeReferences>true</OptimizeReferences><AdditionalDependencies>opengl32.lib;user32.lib;gdi32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies><RandomizedBaseAddress>false</RandomizedBaseAddress><FixedBaseAddress>true</FixedBaseAddress><ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers><GenerateManifest>false</GenerateManifest><DataExecutionPrevention>true</DataExecutionPrevention></Link>
   </ItemDefinitionGroup>
@@ -45,7 +47,7 @@
     <Image Include="icon.ico" />
   </ItemGroup>
   <ItemGroup><ClInclude Include="..\..\..\..\xport\src\xport.h" /><ClInclude Include="..\..\..\..\xport\src\psx.h" /><ClInclude Include="..\..\..\..\xport\src\xport_trace.h" /><ClInclude Include="..\..\..\..\xport\src\psx_gpu.h" /><ClInclude Include="..\..\..\..\xport\src\psx_spu.h" /></ItemGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'"><GenerateManifest>false</GenerateManifest></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'"><GenerateManifest>false</GenerateManifest></PropertyGroup>
   <ItemDefinitionGroup Condition="'$(XcrtEnabled)'=='true'">
     <ClCompile><PreprocessorDefinitions>GAPI_OGL;XPORT_XCRT;_NO_CRT_STDIO_INLINE;%(PreprocessorDefinitions)</PreprocessorDefinitions><OmitDefaultLibName>true</OmitDefaultLibName></ClCompile>
     <Link><AdditionalOptions>/MERGE:.rdata=.text %(AdditionalOptions)</AdditionalOptions><IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries><EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol><AdditionalDependencies>kernel32.lib;opengl32.lib;user32.lib;gdi32.lib;winmm.lib;shlwapi.lib</AdditionalDependencies></Link>
@@ -282,4 +284,13 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 <ItemGroup><ClCompile Include="..\..\..\..\xport\src\psx_mdec.c" /><ClCompile Include="..\..\..\..\xport\src\psx_press.c" /><ClCompile Include="..\..\..\..\xport\src\psx_vlc.c" /><ClCompile Include="..\..\..\..\xport\src\psx_stream.c" /></ItemGroup>
+  <Target Name="XportSelectNativeArch" BeforeTargets="PrepareForBuild">
+    <ReadLinesFromFile File="$(ProjectDir)..\..\..\_build\native-$(Configuration).arch" Condition="Exists('$(ProjectDir)..\..\..\_build\native-$(Configuration).arch')">
+      <Output TaskParameter="Lines" PropertyName="PreviousNativeArch" />
+    </ReadLinesFromFile>
+    <Delete Files="$(TargetPath)" Condition="'$(PreviousNativeArch)'!='$(NativeArch)' And Exists('$(TargetPath)')" />
+  </Target>
+  <Target Name="XportRecordNativeArch" AfterTargets="Link">
+    <WriteLinesToFile File="$(ProjectDir)..\..\..\_build\native-$(Configuration).arch" Lines="$(NativeArch)" Overwrite="true" />
+  </Target>
 </Project>

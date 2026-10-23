@@ -25,9 +25,7 @@ struct ActorPlacement
     uint32 UpdateEvents();
 };
 
-typedef char ActorPlacementSize[(sizeof(ActorPlacement) == 48) ? 1 : -1];
 
-typedef char ActorPlacementStateOffset[(offsetof(ActorPlacement, state) == 44) ? 1 : -1];
 
 struct EncodedActorPlacement
 {

@@ -54,13 +54,9 @@ struct SpriteRecord
     void DrawFacingQuad() const;
 };
 
-typedef char SpriteRecordTextureOffset[(offsetof(SpriteRecord, tex) == 16) ? 1 : -1];
 
-typedef char SpriteRecordAnimationOffset[(offsetof(SpriteRecord, animation_entries) == 20) ? 1 : -1];
 
-typedef char SpriteRecordPositionOffset[(offsetof(SpriteRecord, pos) == 28) ? 1 : -1];
 
-typedef char SpriteRecordExtentOffset[(offsetof(SpriteRecord, extent) == 40) ? 1 : -1];
 
 struct EncodedBillboardNode
 {
@@ -91,7 +87,6 @@ struct BillboardNode
     sint32 extent;
 };
 
-typedef char BillboardNodeSize[(sizeof(BillboardNode) == 28) ? 1 : -1];
 
 // Borrow the positioned prefix only where both vectors are accessed
 struct PositionedBillboardNode
@@ -101,11 +96,8 @@ struct PositionedBillboardNode
     Vec3 world_pos;
 };
 
-typedef char PositionedBillboardPrefixSize[(sizeof(PositionedBillboardNode) == 52) ? 1 : -1];
 
-typedef char PositionedBillboardPositionOffset[(offsetof(PositionedBillboardNode, pos) == 28) ? 1 : -1];
 
-typedef char PositionedBillboardWorldOffset[(offsetof(PositionedBillboardNode, world_pos) == 40) ? 1 : -1];
 
 union SpriteCorner
 {

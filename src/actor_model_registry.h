@@ -146,7 +146,7 @@ typedef char EncodedActorMetadataSize[(sizeof(EncodedActorMetadata) == 672) ? 1 
 
 struct ActorModelDefinition
 {
-    typedef uint32 (AnimatedObject::*Constructor)();
+    typedef intptr (AnimatedObject::*Constructor)();
     Constructor constructor;
     AnimatedObject *prototype;
     uint8 *model_data;

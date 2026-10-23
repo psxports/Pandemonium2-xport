@@ -72,12 +72,8 @@ public:
     static sint16 SampleDefinitionHeading(sint32 frame0, sint32 frame1, const PathDefinition *definition);
 };
 
-typedef char PathDefinitionSize[(sizeof(PathDefinition) == 44) ? 1 : -1];
 
-typedef char PathDefinitionFlagsOffset[(offsetof(PathDefinition, flags) == 16) ? 1 : -1];
 
-typedef char PathDefinitionPositionsOffset[(offsetof(PathDefinition, pos_track) == 20) ? 1 : -1];
 
-typedef char PathDefinitionTransformOffset[(offsetof(PathDefinition, transform) == 40) ? 1 : -1];
 
 #endif

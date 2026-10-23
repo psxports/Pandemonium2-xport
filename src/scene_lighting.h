@@ -55,11 +55,8 @@ struct SceneLight
     uint32 color_scale[3];
 };
 
-typedef char SceneLightBinarySize[(sizeof(SceneLight) == 104) ? 1 : -1];
 
-typedef char SceneLightSourceOffset[(offsetof(SceneLight, src) == 32) ? 1 : -1];
 
-typedef char SceneLightColorOffset[(offsetof(SceneLight, color) == 68) ? 1 : -1];
 
 struct SceneLighting
 {

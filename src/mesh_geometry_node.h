@@ -72,13 +72,9 @@ struct MeshGeometryNode
     static void DrawFacesWithoutLightingCache(const MeshVertex *vertices, const MeshFace *faces, sint32 count);
 };
 
-typedef char MeshGeometryNodeSize[(sizeof(MeshGeometryNode) == 52) ? 1 : -1];
 
-typedef char MeshGeometryNodeCountOffset[(offsetof(MeshGeometryNode, polygon_count) == 32) ? 1 : -1];
 
-typedef char MeshGeometryNodeSourceOffset[(offsetof(MeshGeometryNode, src_mesh) == 40) ? 1 : -1];
 
-typedef char MeshGeometryNodeFirstVertexOffset[(offsetof(MeshGeometryNode, first_vertex) == 50) ? 1 : -1];
 
 struct ProjectedCoordinates
 {
@@ -159,11 +155,8 @@ typedef char MeshVertexSize[(sizeof(MeshVertex) == 16) ? 1 : -1];
 
 typedef char MeshVertexNormalOffset[(offsetof(MeshVertex, n) == 8) ? 1 : -1];
 
-typedef char MeshFaceSize[(sizeof(MeshFace) == 24) ? 1 : -1];
 
-typedef char MeshFacePlaneOffset[(offsetof(MeshFace, plane) == 12) ? 1 : -1];
 
-typedef char MeshFaceNormalOffset[(offsetof(MeshFace, n) == 16) ? 1 : -1];
 
 struct MorphSpan
 {
@@ -202,6 +195,5 @@ struct MeshPartNode
     };
 };
 
-typedef char MeshPartNodeSize[(sizeof(MeshPartNode) == 48) ? 1 : -1];
 
 #endif

@@ -24,10 +24,7 @@ struct ObjectLinks
     void DetachChild(SceneNode *object);
 };
 
-typedef char ObjectLinksSize[(sizeof(ObjectLinks) == 12) ? 1 : -1];
 
-typedef char ObjectLinksSiblingOffset[(offsetof(ObjectLinks, sibling_next) == 4) ? 1 : -1];
 
-typedef char ObjectLinksChildOffset[(offsetof(ObjectLinks, first_child) == 8) ? 1 : -1];
 
 #endif

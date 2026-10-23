@@ -78,7 +78,7 @@ struct ObjectOperations;
 struct ObjectCallback
 {
     typedef void (*PlainHandler)();
-    typedef uint32 (AnimatedObject::*MemberHandler)();
+    typedef intptr (AnimatedObject::*MemberHandler)();
     typedef AnimatedObject *(*FactoryHandler)(AnimatedObject *);
     typedef void (AnimatedObject::*VoidMemberHandler)();
     PlainHandler plain_handler;

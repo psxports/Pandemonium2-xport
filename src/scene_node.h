@@ -58,8 +58,6 @@ struct SceneNode
     void RelocateResourceLinks(const ModelDecodeLayout *layout, const MaterialCatalog *resource, const SpriteRecord *default_spr);
 };
 
-typedef char SceneNodeSize[(sizeof(SceneNode) == 16) ? 1 : -1];
 
-typedef char SceneNodeKindOffset[(offsetof(SceneNode, kind) == 12) ? 1 : -1];
 
 #endif

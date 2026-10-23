@@ -1519,7 +1519,7 @@ void SceneSection::Relocate(const MaterialCatalog *resource)
                     }
                 }
                 const MeshGeometryNode *original_mesh = (const MeshGeometryNode *)src_nodes[light_count + mesh_idx];
-                if (scene_lighting.bounds_origin == original_mesh->pos.comp)
+                if (scene_lighting.bounds_origin == ((const EncodedMeshGeometryNode *)original_mesh)->pos.comp)
                     scene_lighting.bounds_origin = mesh->pos.comp;
             }
             for (path_idx = 0; path_idx < path_count; ++path_idx)

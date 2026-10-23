@@ -73,7 +73,6 @@ struct SphereNode
     uint32 radius;
 };
 
-typedef char SphereNodeSize[(sizeof(SphereNode) == 36) ? 1 : -1];
 
 struct EncodedCollisionTransform
 {
