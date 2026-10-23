@@ -38,6 +38,7 @@ struct RenderCommands
     uint32 pending_draw;
     uint8 nesting;
     uint8 active_buffer;
+    DISPENV *submitted_disp_env;
 
     static void InitializeRenderBuffers(void);
     static void ResetRenderCommands(void);

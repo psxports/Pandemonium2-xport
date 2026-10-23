@@ -65,7 +65,7 @@ struct MeshGeometryNode
     uint16 lighting_idx;
     sint16 first_vertex;
 
-    static void DrawSceneGeometry(void);
+    static void DrawSceneGeometry(bool advance = true);
     static void DrawFacesWithFreshLighting(const MeshVertex *vertices, const MeshFace *faces, sint32 count);
     static void DrawFacesWithCachedLighting(const MeshVertex *vertices, const MeshFace *faces, sint32 count);
     static void DrawUniformColorFaces(const MeshFace *faces, sint32 count);

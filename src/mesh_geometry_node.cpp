@@ -6,8 +6,9 @@
 #include "game.h"
 #include "animated_object.h"
 #include "psx_gte.h"
+#include "hd.h"
 
-void MeshGeometryNode::DrawSceneGeometry(void)
+void MeshGeometryNode::DrawSceneGeometry(bool advance)
 {
     const SceneSection *section;
     const MeshVertex *vertices, *vertex;
@@ -17,7 +18,48 @@ void MeshGeometryNode::DrawSceneGeometry(void)
     RenderMatrixSlot *matrix;
     SceneNode *node;
     uint32 flags, x, y, z, remaining, first_idx, val;
+    uint32 saved_flags = game_flow.transition_flags;
     MATRIX *cur_matrix, *work_matrix, *camera_matrix, *parent_matrix;
+    if (hd_frame.active)
+    {
+        if (advance)
+        {
+            game_flow.transition_flags |= 0x200;
+            section = scene_stream.active_section;
+            node = section->object_heads[2];
+            while (node != 0)
+            {
+                mesh = (MeshGeometryNode *)node;
+                mesh->flags |= 0x200;
+                geometry_view = mesh->vertex_count > 0 ? mesh : mesh->src_mesh;
+                if ((mesh->node.flags & 1) == 0 && (geometry_view->node.flags & 1) == 0)
+                {
+                    if (geometry_view == mesh && (mesh->flags & 0x2000) != 0)
+                        mesh->flags &= ~0x4000u;
+                    else if (CameraProjection::IsSphereVisible(mesh->pos.comp, mesh->node.state_flags << 5))
+                    {
+                        mesh->flags &= ~0x200u;
+                        if ((mesh->flags & 0x80) == 0)
+                        {
+                            if (geometry_view == mesh || (geometry_view->flags & 0x4000) == 0)
+                            {
+                                MaterialAnimationList::UpdateMaterialAnimationList(geometry_view->material_animation_entries);
+                                if (geometry_view != mesh)
+                                    geometry_view->flags |= 0x4000;
+                            }
+                            SceneLighting::SetLightingBounds(mesh->pos.comp, mesh->node.state_flags);
+                            mesh->flags &= ~1u;
+                        }
+                    }
+                }
+                node = mesh->node.links.registry_next;
+            }
+            game_flow.transition_flags &= ~0x200u;
+        }
+        if (hd_frame.collecting && !hd_frame.failed && (!hd_frame.camera_valid || !hd_scene(scene_stream.active_section, &hd_frame.camera, &scene_lighting, NULL)))
+            hd_frame.failed = true;
+        return;
+    }
     matrix = render_view.matrix_cursor;
     flags = game_flow.transition_flags;
     {
@@ -72,7 +114,8 @@ void MeshGeometryNode::DrawSceneGeometry(void)
         flags = mesh->flags;
         val = mesh->node.flags;
         flags |= 0x200;
-        mesh->flags = flags;
+        if (advance)
+            mesh->flags = flags;
         if ((val & 1) != 0)
             goto next_node;
         geometry_view = mesh;
@@ -84,20 +127,22 @@ void MeshGeometryNode::DrawSceneGeometry(void)
         }
         if (geometry_view == mesh && (flags & 0x2000) != 0)
         {
-            mesh->flags = flags & 0xFFFFBFFF;
+            if (advance)
+                mesh->flags = flags & 0xFFFFBFFF;
             goto next_node;
         }
         val = mesh->node.state_flags;
         if ((CameraProjection::IsSphereVisible(mesh->pos.comp, val << 5) << 24) == 0)
             goto next_node;
         flags = mesh->flags;
-        mesh->flags = flags & 0xFFFFFDFF;
+        if (advance)
+            mesh->flags = flags & 0xFFFFFDFF;
         if ((flags & 0x80) != 0)
             goto next_node;
         remaining = geometry_view->vertex_count;
         first_idx = (uint16)geometry_view->first_vertex;
         vertices = geometry_view->vertices + first_idx;
-        if (geometry_view != mesh && (geometry_view->flags & 0x4000) != 0)
+        if (advance && geometry_view != mesh && (geometry_view->flags & 0x4000) != 0)
             goto render_node;
         matrix = render_view.matrix_cursor;
         cur_matrix = &matrix->matrix;
@@ -110,7 +155,8 @@ void MeshGeometryNode::DrawSceneGeometry(void)
         work_matrix->t[0] = x;
         work_matrix->t[1] = y;
         work_matrix->t[2] = z;
-        MaterialAnimationList::UpdateMaterialAnimationList(geometry_view->material_animation_entries);
+        if (advance)
+            MaterialAnimationList::UpdateMaterialAnimationList(geometry_view->material_animation_entries);
         matrix = render_view.matrix_cursor;
         cur_matrix = &matrix->matrix;
         work_matrix = &matrix->next->matrix;
@@ -177,7 +223,7 @@ void MeshGeometryNode::DrawSceneGeometry(void)
         }
         first_idx = (uint16)geometry_view->first_vertex;
         render_view.first_proj_vertex = first_idx;
-        if (geometry_view != mesh)
+        if (advance && geometry_view != mesh)
             geometry_view->flags = geometry_view->flags | 0x4000;
     render_node:
         section = scene_stream.active_section;
@@ -200,7 +246,8 @@ void MeshGeometryNode::DrawSceneGeometry(void)
         else
         {
             MeshGeometryNode::DrawFacesWithFreshLighting(vertices, mesh->polygons, mesh->polygon_count);
-            mesh->flags = mesh->flags & 0xFFFFFFFE;
+            if (advance)
+                mesh->flags = mesh->flags & 0xFFFFFFFE;
         }
     next_node:
         node = mesh->node.links.registry_next;
@@ -211,8 +258,10 @@ void MeshGeometryNode::DrawSceneGeometry(void)
     work_matrix = &matrix->next->matrix;
     camera_matrix = &matrix->next->next->matrix;
     parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-    game_flow.transition_flags = flags & 0xFFFFFDFF;
+    game_flow.transition_flags = advance ? flags & 0xFFFFFDFF : saved_flags;
     render_view.matrix_cursor = matrix->prev;
+    if (hd_frame.collecting && !hd_frame.failed && (!hd_frame.camera_valid || !hd_scene(scene_stream.active_section, &hd_frame.camera, &scene_lighting, NULL)))
+        hd_frame.failed = true;
 }
 
 void MeshGeometryNode::DrawFacesWithFreshLighting(const MeshVertex *vertices, const MeshFace *faces, sint32 count)

@@ -4,6 +4,7 @@
 
 #include "level_loader.h"
 #include "game.h"
+#include "hd.h"
 
 LevelLoader level_loader = {0};
 
@@ -209,6 +210,10 @@ uint32 LevelLoader::PollLevelLoad(sint32 level)
             dst = 0;
             if (level_resource.level_id == 0)
                 dst = OriginalDefaults::hub_sections[(sint8)game_flow.progress.sel_stage];
+#if defined(_DEBUG)
+            if (level_resource.level_id == 1 && getenv("P2_PERF_REFERENCE_START") != NULL)
+                dst = 1;
+#endif
             SceneLoader::RequestSceneSection(dst);
             level_loader.phase = 6;
             break;
@@ -222,9 +227,8 @@ uint32 LevelLoader::PollLevelLoad(sint32 level)
 
 void LevelLoader::LoadLevel(sint32 level)
 {
-    uint32 prev;
+    uint64 prev;
     CharacterPreview preview;
-    FramePacer pacer = {30};
 
     const TextureDescriptor *spr;
     uint32 pos;
@@ -242,7 +246,7 @@ void LevelLoader::LoadLevel(sint32 level)
     camera_motion.smooth_ticks[2] = 0;
     camera_motion.smooth_ticks[1] = 0;
     camera_motion.smooth_ticks[0] = 0;
-    prev = frame_clock.milliseconds;
+    prev = CurrentField();
     preview.velocity.x = -4096;
     preview_playback.tick = 0xFFFFFFFF;
     player_interaction.flags = 0;
@@ -272,7 +276,7 @@ void LevelLoader::LoadLevel(sint32 level)
         }
         MaterialRegistry::UpdateResourceMaterialAnimations();
         RenderCommands::EndDraw();
-        prev = pacer.Wait(prev);
+        prev = WaitGameFrame(prev);
     }
     SceneStream::ActivateSceneSection();
 }
@@ -286,6 +290,7 @@ sint32 LevelLoader::PollLevelLoadResult(sint32 level)
 void LevelLoader::UnloadLevelResources(void)
 {
     FUNCTION_MARKER(0x8002DEDC, "SLUS_005.78");
+    hd_invalidate_geometry();
     scene_events.world_name_idx = 0;
     SceneStream::ReleaseSceneObjects();
     scene_stream.active_section = 0;

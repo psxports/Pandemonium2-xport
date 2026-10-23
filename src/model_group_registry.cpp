@@ -4,6 +4,7 @@
 
 #include "model_group_registry.h"
 #include "game.h"
+#include "hd.h"
 #include "actor_model_registry.h"
 
 ModelGroupRegistry model_grps = {0};
@@ -21,6 +22,7 @@ void ModelGroupRegistry::LoadModelGrp(uint8 kind)
     uint32 flags;
     uint8 byte;
     FUNCTION_MARKER(0x8002B058, "SLUS_005.78");
+    hd_invalidate_geometry();
     offset = resource_archive.Offset(resource_load_cursor.asset);
     slot = resource_load_cursor.asset + 1;
     idx = model_grps.count;
@@ -642,6 +644,7 @@ finish:
 void ModelGroupRegistry::RetainCommonModelGrps(void)
 {
     FUNCTION_MARKER(0x8002D4C0, "SLUS_005.78");
+    hd_invalidate_geometry();
     for (uint32 grp_idx = ModelGroupRegistry::CommonCount; grp_idx < ModelGroupRegistry::Capacity; ++grp_idx)
     {
         for (uint32 model_idx = 0; model_idx < 4; ++model_idx)
@@ -656,6 +659,7 @@ void ModelGroupRegistry::RetainCommonModelGrps(void)
             model_grps.recs[grp_idx].model_polygons[model_idx] = 0;
             free(model_grps.recs[grp_idx].model_data[model_idx]);
             model_grps.recs[grp_idx].model_data[model_idx] = 0;
+            model_grps.recs[grp_idx].models[model_idx] = 0;
             model_grps.recs[grp_idx].model_bytes[model_idx] = 0;
             free(model_grps.recs[grp_idx].animation_data[model_idx]);
             if (model_grps.recs[grp_idx].animation_headers[model_idx] != 0)
@@ -691,6 +695,7 @@ void ModelGroupRegistry::LoadCommonModelGrps(void)
 void ModelGroupRegistry::ClearModelGrps(void)
 {
     FUNCTION_MARKER(0x8002D510, "SLUS_005.78");
+    hd_invalidate_geometry();
     for (uint32 grp_idx = ModelGroupRegistry::CommonCount; grp_idx < ModelGroupRegistry::Capacity; ++grp_idx)
     {
         for (uint32 model_idx = 0; model_idx < 4; ++model_idx)
@@ -705,6 +710,7 @@ void ModelGroupRegistry::ClearModelGrps(void)
             model_grps.recs[grp_idx].model_polygons[model_idx] = 0;
             free(model_grps.recs[grp_idx].model_data[model_idx]);
             model_grps.recs[grp_idx].model_data[model_idx] = 0;
+            model_grps.recs[grp_idx].models[model_idx] = 0;
             model_grps.recs[grp_idx].model_bytes[model_idx] = 0;
             free(model_grps.recs[grp_idx].animation_data[model_idx]);
             if (model_grps.recs[grp_idx].animation_headers[model_idx] != 0)

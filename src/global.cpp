@@ -1,5 +1,7 @@
 #include "global.h"
 #include "original_defaults.h"
+#include "game.h"
+#include "hd.h"
 
 ActionEffectResources action_effect_resources = {0};
 
@@ -30,3 +32,35 @@ CharacterGeometry character_geometry = {0};
 CollisionTransform col_transform = {0};
 
 TriggerContactMotion trigger_contact_motion = {0};
+
+uint64 game_field = 0;
+uint32 game_tick = 0, menu_tick = 0;
+
+void InitializeGameClock(void)
+{
+    FUNCTION_MARKER(0x8006AF88, "SLUS_005.78");
+    game_field = CurrentField() & ~(uint64)1;
+}
+
+void ShutdownGameClock(void)
+{
+    FUNCTION_MARKER(0x8006B000, "SLUS_005.78");
+    // The shared field clock needs no game-owned BIOS event or counter
+}
+
+uint64 CurrentField(void)
+{
+    FUNCTION_MARKER(0x8006EBFC, "SLUS_005.78");
+    return xport_frame();
+}
+
+uint64 WaitGameFrame(uint64 previous)
+{
+    FUNCTION_MARKER(0x80066D78, "SLUS_005.78");
+    uint64 next = (previous & ~(uint64)1) + 2;
+    uint64 current = CurrentField() & ~(uint64)1;
+    if (next < current)
+        next = current;
+    hd_wait(next);
+    return next;
+}

@@ -20,7 +20,7 @@ struct ObjectLinks
     SceneNode *sibling_next;
     SceneNode *first_child;
 
-    void UpdateGraph(AnimatedObject *parent, uint32 mode);
+    void UpdateGraph(AnimatedObject *parent, uint32 mode, bool advance = true);
     void DetachChild(SceneNode *object);
 };
 

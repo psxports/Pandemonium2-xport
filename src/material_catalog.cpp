@@ -4,6 +4,7 @@
 
 #include "material_catalog.h"
 #include "game.h"
+#include "hd.h"
 
 MaterialCatalog *interface_resources = 0;
 
@@ -32,6 +33,10 @@ uint32 MaterialCatalog::DrawTexturedQuad(uint32 pos, uint32 extent, const Textur
     result = packet < render_commands.packet_limit;
     if (result == 0)
         return result;
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_textured_quad(pos, extent, desc, blend, MaterialCatalog::DrawTexturedQuad))
+        hd_frame.failed = true;
+    if (hd_frame.collecting && !hd_frame.failed && !hd_textured_quad(pos, extent, desc, blend, HD_ANCHOR_CENTER, HD_OVERLAY))
+        hd_frame.failed = true;
     tex = desc->mapping.uv_rect;
     corner2 = tex >> 16;
     corner1 = (tex & 0xFF00) | (corner2 & 255);
@@ -106,6 +111,7 @@ void MaterialCatalog::Relocate(const uint8 *input, uint32 bytes, sint32 mode)
     TextureDescriptor *new_texs = new_tex_count != 0 ? (TextureDescriptor *)calloc(new_tex_count, sizeof(TextureDescriptor)) : 0;
     MaterialRecord *new_materials = new_material_count != 0 ? (MaterialRecord *)calloc(new_material_count, sizeof(MaterialRecord)) : 0;
     memcpy(new_data, input, bytes);
+    hd_invalidate_geometry();
     free(texs);
     free(materials);
     free(data);

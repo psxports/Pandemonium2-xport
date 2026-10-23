@@ -18,11 +18,11 @@ struct CameraProjection
     SVECTOR view_normals[5];
 
     static uint32 IsSphereVisible(const sint32 *pos, uint32 radius);
-    static void UpdateAndDrawRegisteredObjects(void);
-    static void BuildCameraView(SceneSection *scene);
-    static void TraverseSceneObjects(SceneSection *scene, uint32 mode);
+    static void UpdateAndDrawRegisteredObjects(bool advance = true);
+    static void BuildCameraView(SceneSection *scene, bool advance = true);
+    static void TraverseSceneObjects(SceneSection *scene, uint32 mode, bool advance = true);
     static uint32 UpdatePlayerFrame(void);
-    static void DrawSceneFrame(SceneSection *scene);
+    static void DrawSceneFrame(SceneSection *scene, bool advance = true);
     static void SetCameraProj(sint32 scale);
     static uint32 ResetSceneRendering(void);
 };

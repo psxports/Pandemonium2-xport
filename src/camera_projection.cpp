@@ -6,6 +6,7 @@
 #include "game.h"
 #include "psx_gte.h"
 #include "global.h"
+#include "hd.h"
 
 CameraProjection camera_proj = {OriginalDefaults::CameraProjectionScale};
 
@@ -26,6 +27,11 @@ uint32 CameraProjection::IsSphereVisible(const sint32 *pos, uint32 radius)
     const FrustumPlane *plane;
     const uint32 plane_order[4] = {1, 3, 2, 4};
     FUNCTION_MARKER(0x80011338, "SLUS_005.78");
+    if (hd_frame.active && hd_frame.camera_valid)
+    {
+        VECTORF center = {pos[0] / 32.0f, pos[1] / 32.0f, pos[2] / 32.0f};
+        return hd_visible(&hd_frame.camera, &center, radius / 32.0f, hd_frame.aspect);
+    }
     sum = pos[0];
     coefficient = render_view.planes[0].n.vx;
     x = sum >> 6;
@@ -64,7 +70,7 @@ uint32 CameraProjection::IsSphereVisible(const sint32 *pos, uint32 radius)
     return 1;
 }
 
-void CameraProjection::UpdateAndDrawRegisteredObjects(void)
+void CameraProjection::UpdateAndDrawRegisteredObjects(bool advance)
 {
     // Q27 unity becomes Q12 after the coefficient shift
     ObjectCallback object_operation;
@@ -82,6 +88,8 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
 
     uint32 target;
     uint32 flags;
+    uint32 saved_flow_flags = game_flow.transition_flags;
+    uint32 saved_actor_flags;
     uint32 saved_ot;
     uint32 saved_fog;
     sint32 radius;
@@ -150,6 +158,7 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
     while (object != 0)
     {
         animated = (AnimatedObject *)object;
+        saved_actor_flags = animated->flags;
         kind = animated->behavior;
         saved_ot = 0;
         if (kind != 1)
@@ -162,6 +171,7 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
                 object_operation = object_operations.behaviors[kind];
             }
 
+            if (advance)
             {
                 const ObjectCallback operation = object_operation;
                 if (operation.member_handler)
@@ -386,12 +396,14 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
             rotation_matrix = &render_view.matrix_cursor->matrix;
             SetRotMatrix(rotation_matrix);
         }
+        hd_frame_root(animated);
         flags = animated->flags;
         byte_flags = animated->node.flags;
         animated->flags = flags | 0x200;
         if ((byte_flags & 3) == 0 && (CameraProjection::IsSphereVisible(animated->world_pos.comp, animated->bounds.radius) << 24) != 0)
         {
-            MaterialAnimationList::UpdateMaterialAnimationList(animated->material_animation_entries);
+            if (advance)
+                MaterialAnimationList::UpdateMaterialAnimationList(animated->material_animation_entries);
             if ((animated->flags & 0x40000) != 0)
                 scene_lighting.skip_transform = 1;
             matrix = render_view.matrix_cursor;
@@ -414,12 +426,13 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
                     cur_matrix->m[idx % 3][idx / 3] = mul12((sint32)scale, coefficient);
                 }
                 SetRotMatrix(cur_matrix);
+                hd_frame_scale(animated->velocity.x / 4096.0f);
             }
             render_view.object_depth_bias = animated->node.state_flags;
             if (animated->mesh_span.polygon_count != 0)
                 animated->DrawGeometry(&animated->mesh_span);
             spr = (SceneNode *)animated->spr;
-            if (spr != 0)
+            if (advance && spr != 0)
             {
                 if (animated->behavior_suspended == 2 || animated->behavior == 17)
                     spr->flags |= 1;
@@ -429,51 +442,61 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
         }
         if ((animated->node.flags & 2) != 0)
         {
-            object->Unregister();
-            SceneNode::ReleaseSceneObject(object);
+            hd_frame_root_end();
+            if (advance)
+            {
+                object->Unregister();
+                SceneNode::ReleaseSceneObject(object);
+            }
         }
         else
         {
-            animated->UpdateObjectBounds();
+            if (advance)
+                animated->UpdateObjectBounds();
             if ((animated->flags & 0x20200) != 0x200)
             {
                 render_view.sphere_output = animated->spheres;
-                animated->node.DrawChildren(animated);
-                byte_flags = animated->node.flags;
-                flags = animated->flags;
-                animated->node.flags = byte_flags & 0xBF;
-                animated->flags = flags & 0xFFFDFFFF;
-                render_view.object_depth_bias = 0;
-                flags = animated->flags;
-                sphere_output = render_view.sphere_output;
-                animated->flags = flags & 0xFFFFFFFE;
-                if (sphere_output != animated->spheres)
+                animated->node.DrawChildren(animated, advance);
+                if (advance)
                 {
-                    x = animated->world_pos.x;
-                    xx = animated->bounds.maximum.x;
-                    y = animated->world_pos.y;
-                    yy = animated->bounds.maximum.y;
-                    z = animated->world_pos.z;
-                    zz = animated->bounds.maximum.z;
-                    animated->world_pos.x = (sint32)(x + xx) >> 1;
-                    animated->world_pos.y = (sint32)(y + yy) >> 1;
-                    animated->world_pos.z = (sint32)(z + zz) >> 1;
-                    xx = animated->bounds.maximum.x;
-                    x = animated->world_pos.x;
-                    yy = animated->bounds.maximum.y;
-                    y = animated->world_pos.y;
-                    zz = animated->bounds.maximum.z;
-                    z = animated->world_pos.z;
-                    animated->bounds.radius = xx - x;
-                    animated->bounds.height = yy - y;
-                    animated->bounds.depth = zz - z;
-                    x = animated->bounds.radius;
-                    y = animated->bounds.height;
-                    animated->bounds.radius = ApproxVectorLen(x, y, zz - z);
+                    byte_flags = animated->node.flags;
+                    flags = animated->flags;
+                    animated->node.flags = byte_flags & 0xBF;
+                    animated->flags = flags & 0xFFFDFFFF;
+                    render_view.object_depth_bias = 0;
+                    flags = animated->flags;
+                    sphere_output = render_view.sphere_output;
+                    animated->flags = flags & 0xFFFFFFFE;
+                    if (sphere_output != animated->spheres)
+                    {
+                        x = animated->world_pos.x;
+                        xx = animated->bounds.maximum.x;
+                        y = animated->world_pos.y;
+                        yy = animated->bounds.maximum.y;
+                        z = animated->world_pos.z;
+                        zz = animated->bounds.maximum.z;
+                        animated->world_pos.x = (sint32)(x + xx) >> 1;
+                        animated->world_pos.y = (sint32)(y + yy) >> 1;
+                        animated->world_pos.z = (sint32)(z + zz) >> 1;
+                        xx = animated->bounds.maximum.x;
+                        x = animated->world_pos.x;
+                        yy = animated->bounds.maximum.y;
+                        y = animated->world_pos.y;
+                        zz = animated->bounds.maximum.z;
+                        z = animated->world_pos.z;
+                        animated->bounds.radius = xx - x;
+                        animated->bounds.height = yy - y;
+                        animated->bounds.depth = zz - z;
+                        x = animated->bounds.radius;
+                        y = animated->bounds.height;
+                        animated->bounds.radius = ApproxVectorLen(x, y, zz - z);
+                    }
                 }
             }
-            animated->node.state_flags = 0;
-            if (render_view.material_override == resource_grps[25].tex)
+            hd_frame_root_end();
+            if (advance)
+                animated->node.state_flags = 0;
+            if (advance && render_view.material_override == resource_grps[25].tex)
                 animated->velocity.x = 0;
             if (saved_ot != 0)
             {
@@ -483,11 +506,12 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
             }
             flags = animated->flags;
             variant = animated->contact_kind;
-            animated->flags = flags & 0xFFFBFFFF;
-            if (variant != 0)
+            if (advance)
+                animated->flags = flags & 0xFFFBFFFF;
+            if (advance && variant != 0)
                 animated->path_motion_scale = 4096;
             kind = animated->movement_mode;
-            if (kind != 0)
+            if (advance && kind != 0)
             {
                 const ObjectCallback operation = object_operations.motions[kind];
                 if (operation.member_handler)
@@ -500,6 +524,8 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
                     operation.plain_handler();
             }
         }
+        if (!advance)
+            animated->flags = saved_actor_flags;
         flags = game_flow.transition_flags;
         object = next;
         render_view.special_transform = 0;
@@ -509,9 +535,11 @@ void CameraProjection::UpdateAndDrawRegisteredObjects(void)
         game_flow.transition_flags = flags & 0xFFFFFFDA;
     }
     render_view.matrix_cursor = render_view.matrix_cursor->prev;
+    if (!advance)
+        game_flow.transition_flags = saved_flow_flags;
 }
 
-void CameraProjection::BuildCameraView(SceneSection *scene)
+void CameraProjection::BuildCameraView(SceneSection *scene, bool advance)
 {
     MATRIX identity = psx_identity_matrix;
     MATRIX x_basis, xy_basis;
@@ -536,14 +564,18 @@ void CameraProjection::BuildCameraView(SceneSection *scene)
     sint64 product;
     uint8 flags;
     FUNCTION_MARKER(0x800165C8, "SLUS_005.78");
-    MaterialRegistry::UpdateResourceMaterialAnimations();
-    SceneLighting::UpdateSceneLights();
-    flags = camera_motion.flags;
-    if ((flags & 1) == 0)
+    if (advance)
     {
-        camera_motion.flags = flags | 1;
-        CameraMotion::UpdateCameraAim();
+        MaterialRegistry::UpdateResourceMaterialAnimations();
+        SceneLighting::UpdateSceneLights();
+        flags = camera_motion.flags;
+        if ((flags & 1) == 0)
+        {
+            camera_motion.flags = flags | 1;
+            CameraMotion::UpdateCameraAim();
+        }
     }
+    hd_frame_camera(&camera_motion.pos, &camera_proj, scene);
     c = SinQ14((camera_proj.rotation[0] + 1024)) >> 2;
     s = SinQ14((-camera_proj.rotation[0])) >> 2;
     rotation_x.m[1][1] = c;
@@ -672,13 +704,13 @@ void CameraProjection::BuildCameraView(SceneSection *scene)
         {
             render_view.lighting_enabled = true;
             render_view.lighting_cache = NULL;
-            CameraProjection::TraverseSceneObjects(scene, 0);
-            MeshGeometryNode::DrawSceneGeometry();
+            CameraProjection::TraverseSceneObjects(scene, 0, advance);
+            MeshGeometryNode::DrawSceneGeometry(advance);
         }
     }
 }
 
-void CameraProjection::TraverseSceneObjects(SceneSection *scene, uint32 mode)
+void CameraProjection::TraverseSceneObjects(SceneSection *scene, uint32 mode, bool advance)
 {
     FUNCTION_MARKER(0x80016C54, "SLUS_005.78");
     uint32 i;
@@ -691,7 +723,7 @@ void CameraProjection::TraverseSceneObjects(SceneSection *scene, uint32 mode)
     matrix->t[2] = 0;
     matrix->t[1] = 0;
     matrix->t[0] = 0;
-    scene->links.UpdateGraph(0, mode);
+    scene->links.UpdateGraph(0, mode, advance);
 }
 
 uint32 CameraProjection::UpdatePlayerFrame(void)
@@ -758,7 +790,7 @@ uint32 CameraProjection::UpdatePlayerFrame(void)
     return 1;
 }
 
-void CameraProjection::DrawSceneFrame(SceneSection *scene)
+void CameraProjection::DrawSceneFrame(SceneSection *scene, bool advance)
 {
     ObjectCallback object_operation;
     SceneSection *section;
@@ -768,7 +800,7 @@ void CameraProjection::DrawSceneFrame(SceneSection *scene)
 
     sint32 kind;
     FUNCTION_MARKER(0x80016EF4, "SLUS_005.78");
-    if (scene != 0)
+    if (advance && scene != 0)
     {
         result = CameraProjection::UpdatePlayerFrame() << 24;
         if (result == 0)
@@ -776,14 +808,19 @@ void CameraProjection::DrawSceneFrame(SceneSection *scene)
     }
     render_view.first_proj_vertex = 0;
     RenderCommands::BeginDraw();
-    CameraProjection::BuildCameraView(scene);
-    CameraProjection::UpdateAndDrawRegisteredObjects();
+    if (hd_frame.returning_og && scene != 0)
+    {
+        for (uint32 idx = 0; idx < scene->lighting_count; ++idx)
+            scene->lighting_recs[idx].control = 0;
+    }
+    CameraProjection::BuildCameraView(scene, advance);
+    CameraProjection::UpdateAndDrawRegisteredObjects(advance);
     if (scene != 0)
     {
-        ScreenRenderState::DrawSceneInterface();
+        ScreenRenderState::DrawSceneInterface(advance);
         section = scene;
         node = section->transient_links.first_child;
-        if (node != 0)
+        if (advance && node != 0)
         {
             do
             {

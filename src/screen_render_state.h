@@ -15,12 +15,16 @@ struct ScreenRenderState
     uint16 background_angle;
     uint32 background_proj;
     uint8 background_scroll;
+    // Preserve the emitted effect at timer endpoints
+    uint8 render_effect;
+    sint32 render_intensity;
+    uint32 render_effect_result;
     uint32 startup_image_loaded;
     sint32 startup_image_x, startup_image_y;
 
     static void StartSceneFadeIn(void);
-    static uint32 UpdateScrEffects(void);
-    static void DrawSceneInterface(void);
+    static uint32 UpdateScrEffects(bool advance = true);
+    static void DrawSceneInterface(bool advance = true);
     static void EmptyScrOperation(void);
     static void DrawSceneFade(void);
     static void DrawBackgroundBorders(sint32 top, uint32 height);
@@ -34,7 +38,7 @@ struct ScreenRenderState
     static void RestoreMenuImage(uint32 mode);
     static void DrawBackgroundRect(uint32 pos, uint32 extent, uint32 color);
     static void FadeMenuImage(uint32 color);
-    static uint32 DrawGameOverFade(void);
+    static uint64 DrawGameOverFade(void);
 };
 
 // Demo input and animated maps share the original workspace

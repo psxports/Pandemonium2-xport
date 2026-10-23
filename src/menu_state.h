@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 #include "psx.h"
-#include "frame_pacer.h"
+#include "global.h"
 #include "material_animation_list.h"
 #include "material_catalog.h"
 
@@ -41,8 +41,8 @@ struct PasswordState
 
 struct MenuState
 {
-    uint32 prev_buttons, last_frame;
-    FramePacer pacer;
+    uint32 prev_buttons;
+    uint64 last_frame;
     uint32 fade_frames, up_hold_frames, down_hold_frames, highlight_phase, highlight_step;
     PasswordState password;
     MenuMaterialResources *resources;

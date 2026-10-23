@@ -23,8 +23,6 @@
 #include "collision.h"
 #include "cutscene_playback.h"
 #include "fixed_math.h"
-#include "frame_clock.h"
-#include "frame_pacer.h"
 #include "game_flow_state.h"
 #include "gameplay_input.h"
 #include "hud_state.h"

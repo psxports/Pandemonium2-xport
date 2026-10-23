@@ -44,15 +44,17 @@ struct BackgroundResource
     const uint8 *command_cursor;
     const uint8 *command_end;
     uint32 last_tick;
-    uint32 start_time;
+    uint64 start_field;
     uint16 width;
     uint16 height;
     const uint8 *static_map;
     uint16 metadata_halfword;
     uint16 tile_count;
     BackgroundTile *tiles;
+    // Preserve the scroll value consumed by the last logic draw
+    uint32 render_scroll;
 
-    static void DrawSceneBackground(void);
+    static void DrawSceneBackground(bool advance = true);
     BackgroundResource *Relocate();
 };
 

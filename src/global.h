@@ -10,6 +10,14 @@
 #include "material_animation_list.h"
 #include "collision.h"
 
+extern uint64 game_field;
+extern uint32 game_tick, menu_tick;
+
+void InitializeGameClock(void);
+void ShutdownGameClock(void);
+uint64 CurrentField(void);
+uint64 WaitGameFrame(uint64 previous);
+
 #define mul12(a, b) (((sint64)(a) * (b)) >> 12)
 #define mul14(a, b) (((sint64)(a) * (b)) >> 14)
 

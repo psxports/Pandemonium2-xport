@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "game.h"
+#include "hd.h"
 #include "psx.h"
 #include "psx_gpu.h"
 
@@ -33,6 +34,8 @@ static void GameEntry(void)
 
 void xport_main(void)
 {
+    xport_set_cleanup(hd_free);
+    hd_invalidate_geometry();
     // The game paces frames with root-counter events
     gpu_set_frame_skip(0);
     SsInit();
@@ -59,7 +62,9 @@ void xport_main(void)
     spu_vm_reset();
     memset(&spu_reverb_attributes, 0, sizeof(spu_reverb_attributes));
     random_generator.seed = OriginalDefaults::RandomSeed;
-    memset(&frame_clock, 0, sizeof(frame_clock));
+    game_field = 0;
+    game_tick = 0;
+    menu_tick = 0;
     {
         RenderMatrixSlot *slot = render_view.matrix_root.next;
         while (slot != 0)
@@ -445,6 +450,7 @@ void xport_main(void)
     interface_resources = 0;
     memset(&material_registry, 0, sizeof(material_registry));
     memset(&saved_material_registry, 0, sizeof(saved_material_registry));
+    hd_sprite_pool(NULL);
     free(spr_pool.recs);
     memset(&spr_pool, 0, sizeof(spr_pool));
     registered_object_head = 0;
@@ -480,7 +486,7 @@ void InitializeGame(uint32 mode)
     SequencePlayback::InitGameSound();
     RenderCommands::InitializeRenderBuffers();
     CdInit();
-    FrameClock::InitializeGameClock();
+    InitializeGameClock();
     GameplayInput::InitializeGamepad();
     resource_memory.arena = AllocateGameMemory(1254400);
     resource_archive.LoadIdx();

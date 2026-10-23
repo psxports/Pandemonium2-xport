@@ -1,5 +1,7 @@
 #include "render_commands.h"
 #include "game.h"
+#include "psx_gpu.h"
+#include "hd.h"
 
 const RenderBuffer render_buffer_defaults[2] = {{{0}, {0}, 0x8008B720, 0x800A1DF0, 0x8009FCF0, 0x800A1CF0, 0x800A52C0}, {{0}, {0}, 0x80095A08, 0x800A1DF0, 0x800A0CF0, 0x800A1D70, 0x800A52C0}};
 
@@ -29,6 +31,7 @@ void RenderCommands::InitializeRenderBuffers(void)
     active = render_buffers + render_commands.active_buffer;
     packet_base = active->packet_base;
     render_commands.pending_disp_env = &active->disp;
+    render_commands.submitted_disp_env = NULL;
     rect.x = 0;
     rect.y = 0;
     rect.w = 1024;
@@ -48,12 +51,14 @@ void RenderCommands::ResetRenderCommands(void)
     render_commands.active_buffer = 0;
     render_commands.pending_draw = 0;
     render_commands.pending_disp_env = 0;
+    render_commands.submitted_disp_env = NULL;
     ResetGraphDefault();
 }
 
 void RenderCommands::ClearSceneOrderingTable(void)
 {
     FUNCTION_MARKER(0x800665B0, "SLUS_005.78");
+    hd_og_clear_background();
     ClearReverseOrderingTable(render_commands.scene_ordering_table_offset, 601);
 }
 
@@ -71,6 +76,9 @@ void RenderCommands::BeginDraw(void)
     render_commands.nesting = prev + 1;
     if (prev != 0)
         return;
+    gpu_frame_begin();
+    hd_frame_begin();
+    gpu_set_raster(!hd_frame.active);
     buffer = render_buffers + (1 - (uint32)render_commands.active_buffer);
     draw_list = buffer->ordering_table_offset;
     order_table = buffer->small_ordering_table_offset;
@@ -112,10 +120,10 @@ void RenderCommands::EndDraw(void)
         return;
     if (render_commands.pending_draw != 0)
         DrawSync(0);
-    if (render_commands.pending_disp_env != 0)
+    if (render_commands.pending_disp_env != 0 && !hd_frame.active && !hd_frame.capture_only)
         VSync(0);
     buffer = render_buffers + (1 - (uint32)render_commands.active_buffer);
-    if (render_commands.aux_packet_offset != buffer->aux_packet_base)
+    if (render_commands.aux_packet_offset != buffer->aux_packet_base || hd_og_background_pending())
     {
         tail = render_commands.scene_ordering_table_offset;
         chain = tail + 2400;
@@ -164,23 +172,48 @@ void RenderCommands::EndDraw(void)
         }
         tail = render_commands.overlay_tail;
     }
-    tail_tag = (uint32 *)psx_addr(tail, sizeof(uint32));
-    *tail_tag |= 0xFFFFFF;
+    if (tail != 0 || !hd_frame.active)
+    {
+        tail_tag = (uint32 *)psx_addr(tail, sizeof(uint32));
+        *tail_tag |= 0xFFFFFF;
+    }
     render_commands.submitted_chain_offset = chain;
     PutDrawEnv(&buffer->draw);
+    hd_og_background_state();
+    render_commands.submitted_disp_env = &buffer->disp;
     render_commands.pending_draw = 1;
-    DrawOTag((uint32 *)psx_addr(chain, sizeof(uint32)));
+    if (chain != 0 || !hd_frame.active)
+        DrawOTag((uint32 *)psx_addr(chain, sizeof(uint32)));
+    else
+        RenderCommands::MarkDrawComplete();
     active = render_commands.active_buffer;
     render_commands.active_buffer = 1 - active;
+    if (hd_frame.returning_og && !hd_frame.capture_only)
+    {
+        // Native DrawOTag has completed this page before presentation resumes
+        PutDispEnv(&buffer->disp);
+        render_commands.pending_disp_env = NULL;
+    }
+    hd_frame_end();
+    gpu_frame_end();
+    if (!hd_frame.capture_only)
+        gpu_present();
 }
 
 DISPENV *RenderCommands::SubmitOverlayFrame(uint32 ot0_offset, uint32 ot1_offset)
 {
     FUNCTION_MARKER(0x800668A0, "SLUS_005.78");
     uint32 idx;
+    DISPENV *result;
+    if (!hd_frame.active)
+    {
+        gpu_set_raster(1);
+        if (!hd_frame.collecting)
+            gpu_frame_begin();
+    }
     if (render_commands.pending_draw)
         DrawSync(0);
-    if (render_commands.pending_disp_env)
+    if (render_commands.pending_disp_env && !hd_frame.active)
         VSync(0);
     idx = (1 - render_commands.active_buffer) & 0xFF;
     render_commands.active_buffer = idx;
@@ -189,20 +222,25 @@ DISPENV *RenderCommands::SubmitOverlayFrame(uint32 ot0_offset, uint32 ot1_offset
     if (ot1_offset)
         DrawOTag((uint32 *)psx_addr(ot1_offset, 4));
     DrawSync(0);
-    VSync(0);
+    if (!hd_frame.active)
+        VSync(0);
     idx = render_commands.active_buffer;
-    return PutDispEnv(&render_buffers[idx].disp);
+    result = PutDispEnv(&render_buffers[idx].disp);
+    hd_frame_end();
+    gpu_frame_end();
+    gpu_present();
+    return result;
 }
 
 void RenderCommands::MarkDrawComplete(void)
 {
-    uint32 idx;
     FUNCTION_MARKER(0x80066C40, "SLUS_005.78");
     if (render_commands.pending_draw != 0)
     {
-        idx = render_commands.active_buffer;
         render_commands.pending_draw = 0;
-        render_commands.pending_disp_env = &render_buffers[idx].disp;
+        // Native completion can run before EndDraw switches active_buffer
+        render_commands.pending_disp_env = render_commands.submitted_disp_env;
+        render_commands.submitted_disp_env = NULL;
     }
 }
 
@@ -210,6 +248,8 @@ void RenderCommands::ShowPendingDisp(void)
 {
     DISPENV *environment;
     FUNCTION_MARKER(0x80066C7C, "SLUS_005.78");
+    if (hd_frame.capture_only)
+        return;
     environment = render_commands.pending_disp_env;
     if (environment != 0)
     {

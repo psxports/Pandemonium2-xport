@@ -4,10 +4,10 @@
 #include "background_resource.h"
 #include "game.h"
 #include "screen_render_state.h"
+#include "hd.h"
 
-void BackgroundResource::DrawSceneBackground(void)
+void BackgroundResource::DrawSceneBackground(bool advance)
 {
-    uint32 *ot_entry;
     FUNCTION_MARKER(0x8005FB40, "SLUS_005.78");
     SceneSection *section;
     BackgroundResource *background;
@@ -19,8 +19,9 @@ void BackgroundResource::DrawSceneBackground(void)
     const uint8 *map_cursor, *row_start;
     uint32 saved_color, width, height, command, kind, count;
     uint32 map_offset;
-    uint32 idx, elapsed, tick, dst, angle, pal, tile, ordering, packet;
-    uint32 uv0, uv1, attributes, tmp, xy, next_xy, next_row, result, remaining;
+    uint32 idx, tick, angle, tile;
+    uint64 elapsed;
+    uint32 tmp, xy, next_xy, next_row, result, remaining;
     sint32 vertical;
     sint32 horizontal;
     sint32 row;
@@ -30,6 +31,7 @@ void BackgroundResource::DrawSceneBackground(void)
     sint32 rows;
     sint32 columns;
     sint32 cur_column;
+    uint32 hd_scroll = 0;
 
     result = game_flow.mode_flags & 0x800;
     if (result != 0)
@@ -52,7 +54,7 @@ void BackgroundResource::DrawSceneBackground(void)
         ScreenRenderState::DrawBackgroundRect(0, 0x00F00140, section->background_top_color);
         return;
     }
-    if ((section->state_flags & 0x40) != 0)
+    if (advance && (section->state_flags & 0x40) != 0)
     {
         section->state_flags &= 0xFFBF;
         tmp = section->pal_bank;
@@ -99,10 +101,10 @@ void BackgroundResource::DrawSceneBackground(void)
     x = -(horizontal & 15);
     map = background->static_map;
 
-    if (background->frame_count != 0)
+    if (advance && background->frame_count != 0)
     {
-        elapsed = frame_clock.milliseconds - background->start_time;
-        tick = (elapsed * background->frame_rate) / 1000u;
+        elapsed = CurrentField() - background->start_field;
+        tick = elapsed * background->frame_rate / FIELD_RATE;
         if (tick != background->last_tick)
         {
             idx = (background->frame_idx + 1u) & 0xFFFF;
@@ -170,11 +172,18 @@ void BackgroundResource::DrawSceneBackground(void)
     idx = level_resource.level_id;
     if (idx == 78 || (idx == 14 && scene_stream.active_section->section_idx == 0))
     {
-        idx = scr_render.background_scroll;
+        if (advance)
+        {
+            idx = scr_render.background_scroll;
+            background->render_scroll = idx;
+            scr_render.background_scroll = idx + 1;
+            if (((idx + 1) & 0xFF) == width)
+                scr_render.background_scroll = 0;
+        }
+        else
+            idx = background->render_scroll;
+        hd_scroll = idx;
         column = idx + column;
-        scr_render.background_scroll = idx + 1;
-        if (((idx + 1) & 0xFF) == width)
-            scr_render.background_scroll = 0;
         if (column >= (sint32)width)
             column = column - width;
     }
@@ -190,6 +199,12 @@ void BackgroundResource::DrawSceneBackground(void)
     if ((sint32)result < 0)
         result += 15;
     if (columns <= 0)
+        return;
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_background_tiles(background, map, row, column, x, y, rows, columns))
+        hd_frame.failed = true;
+    if (hd_frame.collecting && !hd_frame.failed && !hd_background(background, (const uint16 *)map, camera_proj.rotation[0], camera_proj.rotation[1], scr_render.background_angle, hd_scroll, section->background_top_color, section->background_bottom_color))
+        hd_frame.failed = true;
+    if (hd_og_skip_background())
         return;
     next_row = (y << 16) + 0x100000;
     table = background->tiles;
@@ -209,67 +224,9 @@ void BackgroundResource::DrawSceneBackground(void)
             }
             tile = xport_load_le16(map_cursor);
             xy = ((uint32)horizontal & 0xFFFF) | (y << 16);
-            idx = (tile & 0x1FFF) * 8;
             definition = table + (tile & 0x1FFF);
-            ordering = render_commands.scene_ordering_table_offset + (idx >> 1);
-            ot_entry = (uint32 *)psx_addr(ordering + 4, sizeof(uint32));
-            if ((tile & 0xC000) != 0)
-            {
-                uv0 = definition->uv;
-                attributes = definition->attributes;
-                uv1 = uv0 >> 16;
-                if ((tile & 0x4000) != 0)
-                {
-                    tmp = uv1 & 0xFF;
-                    uv1 = (uv1 & 0xFFFFFF00) | (uv0 & 0xFF);
-                    uv0 = (uv0 & 0xFFFFFF00) | tmp;
-                }
-                if ((tile & 0x8000) != 0)
-                {
-                    tmp = uv1 & 0xFF00;
-                    uv1 = (uv1 & 0xFFFF00FF) | (uv0 & 0xFF00);
-                    uv0 = (uv0 & 0xFFFF00FF) | tmp;
-                }
-                uv0 = (uv0 & 0xFFFF) | (attributes & 0xFFFF0000);
-                pal = (uv1 & 0xFF00) | (uv0 & 0xFF);
-                next_xy = ((horizontal + 16u) & 0xFFFF) | next_row;
-                tmp = *ot_entry;
-                packet = render_commands.aux_packet_offset;
-                POLY_FT4 *poly = (POLY_FT4 *)psx_addr(packet, sizeof(POLY_FT4));
-                setPolyFT4(poly);
-                poly->rgbc.rgbc = 0x2D000000;
-                poly->tag = (tmp & 0xFFFFFF) | 0x09000000;
-                poly->p[1].xy.xy = (next_xy & 0xFFFF) | (xy & 0xFFFF0000);
-                poly->p[1].uv_attr = (uv0 & 0xFF00) | (uv1 & 0xFF) | (attributes << 16);
-                poly->p[0].xy.xy = xy;
-                poly->p[0].uv_attr = uv0;
-                poly->p[2].xy.xy = (xy & 0xFFFF) | (next_xy & 0xFFFF0000);
-                poly->p[2].uv_attr = pal;
-                poly->p[3].xy.xy = next_xy;
-                poly->p[3].uv_attr = uv1;
-                tmp = *ot_entry;
-                dst = packet + 40;
-            }
-            else
-            {
-                uv0 = definition->uv;
-                attributes = definition->attributes;
-                packet = render_commands.aux_packet_offset;
-                DR_MODE *mode = (DR_MODE *)psx_addr(packet, sizeof(DR_MODE));
-                SPRT_16 *spr = (SPRT_16 *)psx_addr(packet + 12, sizeof(SPRT_16));
-                setSprt16(spr);
-                mode->tag = ((packet + 12) & 0xFFFFFF) | 0x02000000;
-                mode->code[0] = (attributes & 0xFFFF) | 0xE1000000;
-                mode->code[1] = 0;
-                spr->tag = (*ot_entry & 0xFFFFFF) | 0x03000000;
-                spr->rgbc.rgbc = 0x7D000000;
-                spr->p[0].xy.xy = xy;
-                spr->p[0].uv_attr = (uv0 & 0xFFFF) | (attributes & 0xFFFF0000);
-                tmp = *ot_entry;
-                dst = packet + 28;
-            }
-            *ot_entry = (tmp & 0xFF000000) | (packet & 0xFFFFFF);
-            render_commands.aux_packet_offset = dst;
+            next_xy = ((horizontal + 16u) & 0xFFFF) | next_row;
+            hd_og_emit_background_tile(tile, xy, next_xy, definition);
             cur_column = cur_column + 1u;
             horizontal = horizontal + 16u;
             --remaining;
@@ -294,8 +251,8 @@ BackgroundResource *BackgroundResource::Relocate()
     frame_idx = header->frame_idx;
     frame_count = header->frame_count;
     frame_rate = header->frame_rate;
-    last_tick = header->last_tick;
-    start_time = header->start_time;
+    last_tick = 0xFFFFFFFFu;
+    start_field = CurrentField() & ~(uint64)1;
     width = header->width;
     height = header->height;
     metadata_halfword = header->metadata_halfword;
@@ -325,5 +282,6 @@ BackgroundResource *BackgroundResource::Relocate()
         tiles[i] = ((const BackgroundTile *)command_end)[i];
     }
     frame_idx = frame_count;
+    render_scroll = 0;
     return this;
 }

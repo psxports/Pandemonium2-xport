@@ -2,6 +2,7 @@
 
 #include "game_flow_state.h"
 #include "game.h"
+#include "hd.h"
 
 GameFlowState game_flow = {OriginalDefaults::GameTransitionFlags, OriginalDefaults::GameModeFlags};
 
@@ -47,10 +48,6 @@ void GameFlowState::RunGame(void)
     uint32 fade;
     uint32 style;
     uint32 frame_count;
-    uint32 frame_wait;
-    uint32 deadline;
-    sint32 frame_fraction;
-    sint32 fade_fraction;
     uint32 ending;
     CharacterSettings scene_info;
 
@@ -159,7 +156,7 @@ void GameFlowState::RunGame(void)
             ResourceArchive::EmptyArchiveOperation();
             FreeGameMemory(resource_memory.arena);
             RenderCommands::EmptyRenderOperation();
-            FrameClock::ShutdownGameClock();
+            ShutdownGameClock();
             CdControlBPSX(9, NULL, NULL);
             CdSync(0, NULL);
             RenderCommands::ResetRenderCommands();
@@ -174,8 +171,7 @@ void GameFlowState::RunGame(void)
 start_level:
     game_flow.attract_phase = 1;
     LevelLoader::LoadLevel((sint8)game_flow.requested_level);
-    frame_fraction = 30;
-    frame_clock.frame_start = frame_clock.milliseconds;
+    game_field = CurrentField();
     for (;;)
     {
         if (game_flow.transition_flags & 0x2B008)
@@ -197,8 +193,7 @@ start_level:
                 {
                     ScreenRenderState::SaveMenuImage();
                     frame_count = 30;
-                    fade_fraction = 30;
-                    frame_clock.frame_start = frame_clock.milliseconds;
+                    game_field = CurrentField();
                     fade = 273;
                     do
                     {
@@ -209,18 +204,8 @@ start_level:
                         ScreenRenderState::RestoreMenuImage(1);
                         UiText::DrawText(0x7800A0, UiText::game_over, style, 0);
                         RenderCommands::EndDraw();
-                        frame_wait = 33;
-                        fade_fraction -= 10;
-                        if (fade_fraction <= 0)
-                        {
-                            frame_wait = 34;
-                            fade_fraction += 30;
-                        }
-                        deadline = frame_clock.frame_start + frame_wait;
-                        while (frame_clock.milliseconds < deadline)
-                            psx_native_poll_events();
+                        game_field = WaitGameFrame(game_field);
                         --frame_count;
-                        frame_clock.frame_start = frame_clock.milliseconds;
                         fade += 273;
                     } while (frame_count);
                 }
@@ -245,7 +230,7 @@ start_level:
                 ResourceArchive::EmptyArchiveOperation();
                 FreeGameMemory(resource_memory.arena);
                 RenderCommands::EmptyRenderOperation();
-                FrameClock::ShutdownGameClock();
+                ShutdownGameClock();
                 CdControlBPSX(9, NULL, NULL);
                 CdSync(0, NULL);
                 RenderCommands::ResetRenderCommands();
@@ -267,26 +252,18 @@ start_level:
                     game_flow.progress.unlocked_stage = GameFlowState::MapLevelProgression(level, 1);
             }
             CharacterPreview::ShowLevelCompletion(level, transition);
+            game_field = CurrentField();
         }
         SceneSection::UpdateSceneObjects();
         SceneLoader::PollSceneResourceLoad();
         if (game_flow.transition_flags & 0x10)
         {
             MenuState::RunPauseMenu(level_resource.level_id);
+            game_field = CurrentField();
             gameplay_input.buttons = gameplay_input.buttons | 0x840;
             gameplay_input.prev_buttons |= 0x840;
         }
-        frame_wait = 33;
-        frame_fraction -= 10;
-        if (frame_fraction <= 0)
-        {
-            frame_wait = 34;
-            frame_fraction += 30;
-        }
-        deadline = frame_clock.frame_start + frame_wait;
-        while (frame_clock.milliseconds < deadline)
-            psx_native_poll_events();
-        frame_clock.frame_start = frame_clock.milliseconds;
-        frame_clock.render_tick = frame_clock.render_tick + 1;
+        game_field = WaitGameFrame(game_field);
+        game_tick = game_tick + 1;
     }
 }

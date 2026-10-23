@@ -5,6 +5,7 @@
 #include "sprite_record.h"
 #include "game.h"
 #include "psx_gte.h"
+#include "hd.h"
 
 void SpriteRecord::Draw() const
 {
@@ -43,6 +44,12 @@ void SpriteRecord::Draw() const
             }
             reserve_slot = reserve_slot->next;
         }
+    }
+    hd_frame_sprite(this, render_view.object_scale / 4096.0f, render_view.material_override, &scene_lighting, &matrix->next->matrix, render_view.object_depth_bias);
+    if (hd_frame.active)
+    {
+        SetRotMatrix(matrix->prev != 0 ? &matrix->prev->matrix : 0);
+        return;
     }
     render_view.matrix_cursor = matrix->next;
     SetRotMatrix(&render_view.camera_transform);
@@ -171,6 +178,7 @@ void SpriteRecord::UpdateSprExtent(SpriteRecord *spr)
 void SpriteRecord::ReleaseSpr(SpriteRecord *object)
 {
     FUNCTION_MARKER(0x8002A2F4, "SLUS_005.78");
+    hd_forget_pose(&object->node);
     SpriteRecord *spr = object;
     uint32 *list;
     list = spr->animation_entries;
@@ -192,6 +200,7 @@ void SpriteRecord::InitializeSprPool(void)
         spr_pool.recs = (SpriteRecord *)malloc(SpritePoolState::EntryCount * sizeof(SpriteRecord));
     }
     cur = spr_pool.recs;
+    hd_sprite_pool(cur);
     for (idx = 0; idx < SpritePoolState::EntryCount; ++idx)
     {
         spr_pool.entries[idx].node = (SceneNode *)(cur + idx);
@@ -228,6 +237,7 @@ void SpriteRecord::SpawnEffectSpr(const sint32 *pos, uint32 scale, uint32 effect
     spr = (SpriteRecord *)spr_pool.free_head;
     if (spr == 0)
         return;
+    hd_forget_pose(&spr->node, false);
     for (pool_idx = 0; pool_idx < SpritePoolState::EntryCount; ++pool_idx)
     {
         if (spr_pool.entries[pool_idx].node == &spr->node)

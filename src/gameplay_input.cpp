@@ -1,5 +1,6 @@
 #include "gameplay_input.h"
 #include "game.h"
+#include "hd.h"
 
 GameplayInput gameplay_input = {0};
 
@@ -18,9 +19,8 @@ void GameplayInput::ApplyDemo()
 void GameplayInput::RunDemo(void)
 {
     FUNCTION_MARKER(0x800276DC, "SLUS_005.78");
-    uint32 flags, prev_form, frames, ticks, deadline, wait, val, result;
+    uint32 flags, prev_form, frames, val, result;
     sint32 idx = (sint8)gameplay_input.demo_idx;
-    sint32 fraction = 30;
     const ControlBindings::Scheme *old_mapping = control_bindings.active_scheme;
     sint8 levels[3] = {OriginalDefaults::demo_levels[0], OriginalDefaults::demo_levels[1], OriginalDefaults::demo_levels[2]};
     sint8 forms[3] = {OriginalDefaults::demo_forms[0], OriginalDefaults::demo_forms[1], OriginalDefaults::demo_forms[2]};
@@ -31,29 +31,19 @@ void GameplayInput::RunDemo(void)
     prev_form = CharacterController::SelectCharacterForm(forms[idx]);
     idx = (sint8)gameplay_input.demo_idx;
     LevelLoader::LoadLevel(levels[idx]);
-    ticks = frame_clock.milliseconds;
+    game_field = CurrentField();
     frames = 682;
     do
     {
         if (GameplayInput::ReadGamepadButtons() != 0)
             break;
-        fraction -= 10;
         SceneSection::UpdateSceneObjects();
         SceneLoader::PollSceneResourceLoad();
-        wait = 33;
-        if (fraction <= 0)
-        {
-            wait = 34;
-            fraction += 30;
-        }
-        deadline = ticks + wait;
-        while (frame_clock.milliseconds < deadline)
-            ;
+        game_field = WaitGameFrame(game_field);
 
-        val = frame_clock.render_tick;
-        ticks = frame_clock.milliseconds;
+        val = game_tick;
         frames -= 1;
-        frame_clock.render_tick = val + 1;
+        game_tick = val + 1;
     } while (frames != 0);
     while (SceneLoader::PollSceneResourceLoad() != 0)
         ;

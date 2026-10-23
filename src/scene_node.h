@@ -46,13 +46,13 @@ struct SceneNode
     uint8 flags;
     uint16 state_flags;
 
-    void DrawChildren(AnimatedObject *owner);
+    void DrawChildren(AnimatedObject *owner, bool advance = true);
     uint32 ResetPlayback(const SceneNode *parent);
     static const MeshFace *SelectColFace(const SceneNode *object, uint32 selection, CollisionTransform *desc);
     static void ReleaseSceneObject(SceneNode *object);
     void MoveBetweenLists(SceneNode **src_head, SceneNode **dst_head);
     void RelocateClone(uint8 *dst, const uint8 *src);
-    void Register();
+    void Register(bool new_lifetime = true);
     void Unregister();
     void DrawBillboard() const;
     void RelocateResourceLinks(const ModelDecodeLayout *layout, const MaterialCatalog *resource, const SpriteRecord *default_spr);

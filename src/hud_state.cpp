@@ -18,18 +18,20 @@ void HudState::ResetHud(void)
     uint32 idx;
     uint32 *entries;
     FUNCTION_MARKER(0x8006540C, "SLUS_005.78");
+    hud.render_counters = 0;
     for (idx = 0; idx < 3; ++idx)
     {
         hud.counters[idx].state = 0;
         hud.counters[idx].shown_val = 0xFFFFFFFF;
+        hud.counters[idx].render_visible = false;
     }
     entries = resource_grps[1].animation_entries;
-    frame_clock.menu_tick = 0;
+    menu_tick = 0;
     MaterialAnimationList::ResetMaterialAnimationList(entries);
     MaterialAnimationList::ResetMaterialAnimationList(resource_grps[5].animation_entries);
 }
 
-void HudState::DrawHudCounter(uint32 idx, uint32 val, uint32 ox, uint32 oy, uint32 hidden_x)
+void HudState::DrawHudCounter(uint32 idx, uint32 val, uint32 ox, uint32 oy, uint32 hidden_x, bool advance)
 {
     TextureDescriptor *tex;
     uint32 *animation_entries;
@@ -47,6 +49,16 @@ void HudState::DrawHudCounter(uint32 idx, uint32 val, uint32 ox, uint32 oy, uint
     const uint8 *atlas, *glyph;
     uint32 tile;
     Glyph glyph_data;
+    TextureMapping saved_mapping;
+    if (!advance)
+    {
+        if (!hud.counters[idx].render_visible)
+            return;
+        x = hud.counters[idx].render_x;
+        y = hud.counters[idx].render_y;
+        goto draw_hud;
+    }
+    hud.counters[idx].render_visible = false;
     x = ox;
     y = oy;
     if (idx == 1)
@@ -170,14 +182,23 @@ void HudState::DrawHudCounter(uint32 idx, uint32 val, uint32 ox, uint32 oy, uint
         }
     }
 draw_hud:
-    count = hud.counters[idx].shown_val;
+    if (advance)
+    {
+        count = hud.counters[idx].shown_val;
+        hud.counters[idx].render_x = x;
+        hud.counters[idx].render_y = y;
+        hud.counters[idx].render_count = count;
+        hud.counters[idx].render_visible = true;
+    }
+    else
+        count = hud.counters[idx].render_count;
 
     if (idx == 1)
     {
         icon = resource_grps[28].tex;
         if (count == 0 || icon == 0)
             goto finish_hud;
-        if (count == 1)
+        if (count == 1 && advance)
             hud.counters[1].shown_val = 0xFFFFFFFF;
         else if (count == 0xFFFFFFFF)
             count = 1;
@@ -213,10 +234,14 @@ draw_hud:
                 blend = 0;
             }
             glyph_data = *(const Glyph *)glyph;
+            if (!advance)
+                saved_mapping = tex->mapping;
             tex->mapping.uv_rect = glyph_data.uv_rect;
             tex->mapping.page_clut = glyph_data.page_clut;
             tex->mapping.clut = saved_half;
             MaterialCatalog::DrawTexturedQuad((x + 3) | ((y + 3) << 16), 0, grp, blend);
+            if (!advance)
+                tex->mapping = saved_mapping;
         }
         goto finish_hud;
     }
@@ -252,7 +277,7 @@ finish_hud:
     return;
 }
 
-void HudState::DrawHud(const AnimatedObject *object)
+void HudState::DrawHud(const AnimatedObject *object, bool advance)
 {
     FUNCTION_MARKER(0x80065BC4, "SLUS_005.78");
     uint32 result, val, idx, unchanged, mode;
@@ -260,9 +285,11 @@ void HudState::DrawHud(const AnimatedObject *object)
     CharacterSettings settings;
     const char *prompt;
     const TextureDescriptor *target;
+    TextureDescriptor *font;
+    TextureMapping saved_font_mapping;
     uint32 *grp_entries;
     result = game_flow.transition_flags & 0x10;
-    if (result == 0)
+    if (advance && result == 0)
     {
         hud.suppress_counters = 0;
         result = GameFlowState::CanOpenPauseMenu() << 24;
@@ -276,16 +303,33 @@ void HudState::DrawHud(const AnimatedObject *object)
                 hud.suppress_counters = 1;
         }
     }
+    if (advance)
+        hud.render_counters = 0;
     if (object == 0)
         return;
-    CharacterController::CaptureCharacterSettings(&settings);
-    if ((game_flow.transition_flags & 0x20000) != 0)
+    font = resource_grps[OriginalDefaults::FontResourceGroup].tex;
+    if (advance)
+        hud.render_font_mapping = font->mapping;
+    else
+    {
+        saved_font_mapping = font->mapping;
+        font->mapping = hud.render_font_mapping;
+    }
+    if (advance)
+        CharacterController::CaptureCharacterSettings(&settings);
+    if (advance && (game_flow.transition_flags & 0x20000) != 0)
     {
         settings.counters[CharacterSettings::CNT_HEALTH] = 0;
         settings.counters[CharacterSettings::CNT_LIVES] = 0;
     }
     unchanged = 1;
-    if (hud.suppress_counters == 0)
+    if (!advance)
+    {
+        for (idx = 0; idx < 3; ++idx)
+            if ((hud.render_counters & (1u << idx)) != 0)
+                HudState::DrawHudCounter(idx, 0, 0, 0, 0, false);
+    }
+    else if (hud.suppress_counters == 0)
     {
         for (idx = 0; idx < 3; ++idx)
         {
@@ -293,20 +337,21 @@ void HudState::DrawHud(const AnimatedObject *object)
             {
                 // Indices0..2 overwrite all three incoming layout values
                 HudState::DrawHudCounter(idx, settings.counters[idx], 0, 0, 0);
+                hud.render_counters |= 1u << idx;
                 unchanged = 0;
             }
         }
     }
-    if (unchanged != 0)
+    if (advance && unchanged != 0)
     {
         grp_entries = resource_grps[1].animation_entries;
-        frame_clock.menu_tick = 0;
+        menu_tick = 0;
         MaterialAnimationList::ResetMaterialAnimationList(grp_entries);
         MaterialAnimationList::ResetMaterialAnimationList(resource_grps[5].animation_entries);
     }
     if ((game_flow.transition_flags & 2) != 0)
     {
-        mode = (frame_clock.render_tick & 6) >> 1;
+        mode = (game_tick & 6) >> 1;
         if (mode == 0)
             text = demo[0];
         else if (mode == 2)
@@ -318,6 +363,8 @@ void HudState::DrawHud(const AnimatedObject *object)
     result = level_resource.level_id;
     if (result != 0)
     {
+        if (!advance)
+            font->mapping = saved_font_mapping;
         return;
     }
     idx = scene_events.world_name_idx;
@@ -326,11 +373,11 @@ void HudState::DrawHud(const AnimatedObject *object)
         UiText::DrawText(0x005500A0, level_resource.world_names[idx - 1].text, 1, 0);
         idx = scene_events.world_name_idx;
     }
-    if (idx == 0)
+    if (advance && idx == 0)
         hud.prompt_phase = 0;
-    else
+    else if (advance)
     {
-        val = frame_clock.render_tick;
+        val = game_tick;
         if (hud.prompt_deadline < val)
         {
             mode = hud.prompt_phase;
@@ -340,7 +387,8 @@ void HudState::DrawHud(const AnimatedObject *object)
     }
     val = render_commands.overlay_tail;
     mode = hud.prompt_phase;
-    hud.prompt_tail = val;
+    if (advance)
+        hud.prompt_tail = val;
     if (mode == 0)
     {
         target = interface_resources->texs + 11;
@@ -356,4 +404,6 @@ void HudState::DrawHud(const AnimatedObject *object)
         prompt = enter_level;
     }
     UiText::DrawText(0x00CA003C, prompt, 0, 0);
+    if (!advance)
+        font->mapping = saved_font_mapping;
 }

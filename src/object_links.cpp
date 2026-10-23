@@ -5,8 +5,9 @@
 #include "object_links.h"
 #include "game.h"
 #include "psx_gte.h"
+#include "hd.h"
 
-void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
+void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode, bool advance)
 {
     // Q27 unity becomes Q12 after the coefficient shift
     FUNCTION_MARKER(0x800140F8, "SLUS_005.78");
@@ -46,6 +47,11 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
     uint32 x, y, z, w, i;
     sint32 idx, angle;
     sint16 c, s;
+    bool pose_prepared;
+    uint8 saved_node_flags;
+    uint32 saved_actor_flags, saved_game_flags = game_flow.transition_flags;
+    Quat trigger_quat;
+    const sint16 *trigger_rotation;
     matrix = render_view.matrix_cursor;
     cur_matrix = &matrix->matrix;
     parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
@@ -76,18 +82,36 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         }
     }
     render_view.matrix_cursor = matrix->next;
+    hd_frame_graph_begin(&render_view.matrix_cursor->matrix);
     base_mode = mode & 0xFFFFFFCD;
     while (node != 0)
     {
+        pose_prepared = false;
         flags = node->flags;
+        saved_node_flags = node->flags;
+        saved_actor_flags = node->kind == 0 ? ((AnimatedObject *)node)->flags : 0;
         work = base_mode;
         next_node = node->links.sibling_next;
         old_active = flags & 1;
+        category = node->kind;
+        if (!advance)
+        {
+            work = hd_graph_work(node, 0, false);
+            if (work == 0)
+            {
+                goto next_object;
+            }
+            // Recompute view eligibility without replaying node behavior
+            work &= ~0x10u;
+            if ((node->flags & 0x91) == 0x10 && (parent == NULL || category == 0 || (parent_view->flags & 0x200) == 0))
+                work |= 0x10;
+            goto build_node_matrix;
+        }
+        hd_graph_work(node, 0, true);
         if ((work & 1) != 0)
             node->flags = flags | 1;
         else if ((work & 8) != 0)
             node->flags = flags & 0xFE;
-        category = node->kind;
         if (category == 0 && (work & 0x85) == 0)
         {
             actor = (AnimatedObject *)node;
@@ -137,9 +161,13 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
             goto next_object;
         work |= flags;
         if (work == 0)
+        {
             goto next_object;
+        }
         if ((work & 0x62) != 0)
             AnimatedObject::ApplyNodeAnimation(parent, node);
+        hd_graph_work(node, work, true);
+    build_node_matrix:
         matrix = render_view.matrix_cursor;
         cur_matrix = &matrix->matrix;
         parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
@@ -203,7 +231,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     idx = -(idx + 2);
                     work &= 0xFFFFFFEF;
                 }
-                if ((work & 0xCC) != 0)
+                if (advance && (work & 0xCC) != 0)
                 {
                     col_cache = parent_view->col_transforms;
                     col_cache = col_cache + (uint32)idx;
@@ -255,6 +283,8 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     }
                 }
             }
+            hd_frame_graph_node(node, parent, work);
+            pose_prepared = true;
             if ((work & 0x14) == 0x10)
                 parent_view->DrawGeometry(&part->span);
             goto visit_children;
@@ -339,6 +369,8 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                 }
                 SetRotMatrix(cur_matrix);
 
+                if (!advance)
+                    goto actor_pose_ready;
                 delta.x = cur_matrix->t[0] - (uint32)actor->spheres[1].pos.x;
                 delta.y = cur_matrix->t[1] - (uint32)actor->spheres[1].pos.y;
                 delta.z = cur_matrix->t[2] - (uint32)actor->spheres[1].pos.z;
@@ -408,7 +440,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     SetRotMatrix(stack_src);
                 }
             }
-            if ((work & 0xCC) != 0)
+            if (advance && (work & 0xCC) != 0)
             {
                 matrix = render_view.matrix_cursor;
                 cur_matrix = &matrix->matrix;
@@ -456,6 +488,9 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                 }
                 node->flags = node->flags & 0xBF;
             }
+        actor_pose_ready:
+            hd_frame_graph_node(node, parent, work);
+            pose_prepared = true;
             if ((work & 0x14) == 0x10)
             {
                 if ((CameraProjection::IsSphereVisible(actor->world_pos.comp, actor->bounds.radius) & 0xFF) != 0)
@@ -470,7 +505,8 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                         work &= 0xFFFFFFEF;
                     else
                     {
-                        MaterialAnimationList::UpdateMaterialAnimationList(actor->material_animation_entries);
+                        if (advance)
+                            MaterialAnimationList::UpdateMaterialAnimationList(actor->material_animation_entries);
                         matrix = render_view.matrix_cursor;
                         cur_matrix = &matrix->matrix;
                         parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
@@ -510,11 +546,11 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
             }
             if (work != 0)
             {
-                node->links.UpdateGraph(actor, work);
+                node->links.UpdateGraph(actor, work, advance);
                 if ((work & 0x14) == 0x10)
                     actor->flags = actor->flags & 0xFFFFFFFE;
             }
-            if (actor->behavior == 22)
+            if (advance && actor->behavior == 22)
             {
                 child_reference = node->links.first_child;
                 linked_child = child_reference != 0 ? (AnimatedObject *)child_reference : NULL;
@@ -601,11 +637,14 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
             cur_matrix->t[1] = y;
             cur_matrix->t[2] = z;
 
+            hd_frame_graph_node(node, parent, work);
+            pose_prepared = true;
             if ((work & 0x14) == 0x10)
             {
                 if (parent == 0)
                 {
-                    SpriteRecord::UpdateSprExtent(spr);
+                    if (advance)
+                        SpriteRecord::UpdateSprExtent(spr);
                     if ((node->state_flags & 0x10) != 0)
                         render_view.far_distance = 0x1FFFFC00;
                     matrix = render_view.matrix_cursor;
@@ -613,7 +652,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
                     if ((CameraProjection::IsSphereVisible(cur_matrix->t, (uint32)(spr->extent[0] + spr->extent[1]) << 5) & 0xFF) != 0)
                     {
-                        if ((MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) & 0xFF) == 0)
+                        if (advance && (MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) & 0xFF) == 0)
                         {
                             DetachChild(node);
                             SceneNode::ReleaseSceneObject(node);
@@ -631,7 +670,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                 stack_src = parent_matrix;
                 memcpy(cur_matrix->m, stack_src->m, sizeof(cur_matrix->m));
 
-                if ((MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) & 0xFF) != 0)
+                if (!advance || (MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) & 0xFF) != 0)
                     spr->Draw();
                 else
                 {
@@ -640,7 +679,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     node->flags = node->flags | 1;
                 }
             }
-            else if ((node->state_flags & 2) != 0)
+            else if (advance && (node->state_flags & 2) != 0)
             {
                 DetachChild(node);
                 SceneNode::ReleaseSceneObject(node);
@@ -660,25 +699,29 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         if (category == 8)
         {
             billboard = (PositionedBillboardNode *)node;
+            if (advance)
             {
-                VECTOR rotation_input = {billboard->pos.x, billboard->pos.y, billboard->pos.z, 0};
-                VECTOR rotation_output;
-                ApplyRotMatrixLV(&rotation_input, &rotation_output);
-                billboard->world_pos.x = rotation_output.vx;
-                billboard->world_pos.y = rotation_output.vy;
-                billboard->world_pos.z = rotation_output.vz;
+                {
+                    VECTOR rotation_input = {billboard->pos.x, billboard->pos.y, billboard->pos.z, 0};
+                    VECTOR rotation_output;
+                    ApplyRotMatrixLV(&rotation_input, &rotation_output);
+                    billboard->world_pos.x = rotation_output.vx;
+                    billboard->world_pos.y = rotation_output.vy;
+                    billboard->world_pos.z = rotation_output.vz;
+                }
+                matrix = render_view.matrix_cursor;
+                cur_matrix = &matrix->matrix;
+                parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
+                billboard->world_pos.x = (uint32)billboard->world_pos.x + parent_matrix->t[0];
+                billboard->world_pos.y = (uint32)billboard->world_pos.y + parent_matrix->t[1];
+                billboard->world_pos.z = (uint32)billboard->world_pos.z + parent_matrix->t[2];
             }
-            matrix = render_view.matrix_cursor;
-            cur_matrix = &matrix->matrix;
-            parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-            billboard->world_pos.x = (uint32)billboard->world_pos.x + parent_matrix->t[0];
-            billboard->world_pos.y = (uint32)billboard->world_pos.y + parent_matrix->t[1];
-            billboard->world_pos.z = (uint32)billboard->world_pos.z + parent_matrix->t[2];
             if ((work & 0x14) != 0x10 || (parent == 0 && (CameraProjection::IsSphereVisible(billboard->world_pos.comp, billboard->billboard.extent) & 0xFF) == 0))
             {
                 node->flags = node->flags | 4;
                 goto next_object;
             }
+            hd_frame_graph_node(node, parent, work);
             SetRotMatrix(&render_view.camera_transform);
 
             {
@@ -701,6 +744,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         if (category == 2)
         {
             SceneTrigger *trigger = (SceneTrigger *)node;
+            trigger_rotation = trigger->rotation;
             {
                 VECTOR rotation_input = {trigger->pos.x, trigger->pos.y, trigger->pos.z, 0};
                 VECTOR rotation_output;
@@ -721,7 +765,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
 
             if ((trigger->node.state_flags & 0xFF20) != 0x0120)
             {
-                if (trigger->rotation[0] == 0x4000)
+                if (trigger_rotation[0] == 0x4000)
                 {
                     stack_src = parent_matrix;
                     memcpy(cur_matrix->m, stack_src->m, sizeof(cur_matrix->m));
@@ -729,7 +773,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                 else
                 {
                     {
-                        uint32 qw = trigger->rotation[0], qx = trigger->rotation[1], qy = trigger->rotation[2], qz = trigger->rotation[3];
+                        uint32 qw = trigger_rotation[0], qx = trigger_rotation[1], qy = trigger_rotation[2], qz = trigger_rotation[3];
                         uint32 xx = qx * qx, yy = qy * qy, zz = qz * qz, xy = qx * qy, xz = qx * qz, yz = qy * qz, wz = qw * qz, wy = qw * qy, wx = qw * qx;
                         cur_matrix->m[0][0] = (sint32)((1u << 27) - (yy + zz)) >> 15;
                         cur_matrix->m[1][1] = (sint32)((1u << 27) - (xx + zz)) >> 15;
@@ -764,11 +808,13 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                 if ((sint32)x >= 0)
                 {
                     angle = Atan2Angle(input.z, input.x);
-                    Quat::ComposeHeadingQuat(angle, 0, &trigger->quat);
+                    Quat::ComposeHeadingQuat(angle, 0, advance ? &trigger->quat : &trigger_quat);
+                    if (!advance)
+                        trigger_rotation = trigger_quat.comp;
                     matrix = render_view.matrix_cursor;
                     cur_matrix = &matrix->matrix;
                     parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-                    if (trigger->rotation[0] == 0x4000)
+                    if (trigger_rotation[0] == 0x4000)
                     {
                         stack_src = root_matrix;
                         memcpy(cur_matrix->m, stack_src->m, sizeof(cur_matrix->m));
@@ -776,7 +822,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     else
                     {
                         {
-                            uint32 qw = trigger->rotation[0], qx = trigger->rotation[1], qy = trigger->rotation[2], qz = trigger->rotation[3];
+                            uint32 qw = trigger_rotation[0], qx = trigger_rotation[1], qy = trigger_rotation[2], qz = trigger_rotation[3];
                             uint32 xx = qx * qx, yy = qy * qy, zz = qz * qz, xy = qx * qy, xz = qx * qz, yz = qy * qz, wz = qw * qz, wy = qw * qy, wx = qw * qx;
                             tmp_matrix.m[0][0] = (sint32)((1u << 27) - (yy + zz)) >> 15;
                             tmp_matrix.m[1][1] = (sint32)((1u << 27) - (xx + zz)) >> 15;
@@ -817,51 +863,56 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     }
                 }
             }
-            trigger->node.state_flags = (trigger->node.state_flags & 0xFF00) | (uint8)((trigger->node.state_flags & 0xFF) | 0x40);
+            hd_frame_graph_node(node, parent, work, (trigger->node.state_flags & 0xFF20) == 0x0120 ? &input : NULL);
+            pose_prepared = true;
+            if (advance)
+            {
+                trigger->node.state_flags = (trigger->node.state_flags & 0xFF00) | (uint8)((trigger->node.state_flags & 0xFF) | 0x40);
 
-            if ((work & 0x8C) != 0)
-            {
-                trigger->delta.z = 0;
-                trigger->delta.y = 0;
-                trigger->delta.x = 0;
-            }
-            else
-            {
+                if ((work & 0x8C) != 0)
+                {
+                    trigger->delta.z = 0;
+                    trigger->delta.y = 0;
+                    trigger->delta.x = 0;
+                }
+                else
+                {
+                    matrix = render_view.matrix_cursor;
+                    cur_matrix = &matrix->matrix;
+                    parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
+                    trigger->delta.x = (uint32)cur_matrix->t[0] - trigger->transform.t[0];
+                    trigger->delta.y = (uint32)cur_matrix->t[1] - trigger->transform.t[1];
+                    trigger->delta.z = (uint32)cur_matrix->t[2] - trigger->transform.t[2];
+                }
                 matrix = render_view.matrix_cursor;
                 cur_matrix = &matrix->matrix;
                 parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-                trigger->delta.x = (uint32)cur_matrix->t[0] - trigger->transform.t[0];
-                trigger->delta.y = (uint32)cur_matrix->t[1] - trigger->transform.t[1];
-                trigger->delta.z = (uint32)cur_matrix->t[2] - trigger->transform.t[2];
-            }
-            matrix = render_view.matrix_cursor;
-            cur_matrix = &matrix->matrix;
-            parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-            {
-                uint32 c0 = cur_matrix->t[0], c1 = cur_matrix->t[1], c2 = cur_matrix->t[2];
-                trigger->transform.t[0] = c0;
-                trigger->transform.t[1] = c1;
-                trigger->transform.t[2] = c2;
-            }
-            matrix = render_view.matrix_cursor;
-            cur_matrix = &matrix->matrix;
-            parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
-            for (i = 0; i < 9; ++i)
-                trigger->transform.m[i / 3][i % 3] = cur_matrix->m[i % 3][i / 3];
-
-            if (parent != 0)
-            {
-                if ((parent_view->flags & 0x200) != 0)
-                    trigger->node.flags = trigger->node.flags | 4;
-                else if ((trigger->node.flags & 4) != 0)
                 {
-                    if ((work & 2) == 0)
+                    uint32 c0 = cur_matrix->t[0], c1 = cur_matrix->t[1], c2 = cur_matrix->t[2];
+                    trigger->transform.t[0] = c0;
+                    trigger->transform.t[1] = c1;
+                    trigger->transform.t[2] = c2;
+                }
+                matrix = render_view.matrix_cursor;
+                cur_matrix = &matrix->matrix;
+                parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
+                for (i = 0; i < 9; ++i)
+                    trigger->transform.m[i / 3][i % 3] = cur_matrix->m[i % 3][i / 3];
+
+                if (parent != 0)
+                {
+                    if ((parent_view->flags & 0x200) != 0)
+                        trigger->node.flags = trigger->node.flags | 4;
+                    else if ((trigger->node.flags & 4) != 0)
                     {
-                        trigger->delta.z = 0;
-                        trigger->delta.y = 0;
-                        trigger->delta.x = 0;
+                        if ((work & 2) == 0)
+                        {
+                            trigger->delta.z = 0;
+                            trigger->delta.y = 0;
+                            trigger->delta.x = 0;
+                        }
+                        trigger->node.flags = trigger->node.flags & 0xFB;
                     }
-                    trigger->node.flags = trigger->node.flags & 0xFB;
                 }
             }
             goto visit_children;
@@ -887,7 +938,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
             cur_matrix->t[1] = y;
             cur_matrix->t[2] = z;
 
-            if ((work & 0x40) != 0 && this == (ObjectLinks *)parent)
+            if (advance && (work & 0x40) != 0 && this == (ObjectLinks *)parent)
             {
                 {
                     uint32 c0 = cur_matrix->t[0], c1 = cur_matrix->t[1], c2 = cur_matrix->t[2];
@@ -904,6 +955,8 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         if (category == 3)
         {
             path = (ScenePath *)node;
+            if (!advance)
+                goto visit_children;
             follow = (work & 4) == 0 && path == camera_motion.path;
             if (follow != 0)
             {
@@ -959,6 +1012,12 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         if (category == 9)
         {
             definition = (PathDefinition *)node;
+            if (!advance)
+            {
+                if (definition->transform != NULL)
+                    hd_frame_graph_path(definition->transform);
+                goto visit_children;
+            }
             if (definition->transform != 0)
             {
                 follow = 0;
@@ -1067,6 +1126,7 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
                     for (uint32 column = 0; column < 3; ++column)
                         path_transform->matrix.m[i][column] = stack_src->m[i][column];
                 }
+                hd_frame_graph_path(path_transform);
                 render_view.matrix_cursor = render_view.matrix_cursor->next;
                 if (follow != 0)
                 {
@@ -1169,6 +1229,8 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
         if (category == 4)
         {
             light = (SceneLight *)node;
+            if (!advance)
+                goto visit_children;
             {
                 VECTOR rotation_input = {light->pos.x, light->pos.y, light->pos.z, 0};
                 {
@@ -1197,13 +1259,24 @@ void ObjectLinks::UpdateGraph(AnimatedObject *parent, uint32 mode)
             }
         }
     visit_children:
+        if (!pose_prepared)
+            hd_frame_graph_node(node, parent, work);
         if (node->links.first_child != 0)
-            node->links.UpdateGraph(parent, work);
+            node->links.UpdateGraph(parent, work, advance);
     next_object:
+        if (!advance)
+        {
+            node->flags = saved_node_flags;
+            if (node->kind == 0)
+                ((AnimatedObject *)node)->flags = saved_actor_flags;
+        }
         node = next_node;
     }
+    hd_frame_graph_end();
     matrix = render_view.matrix_cursor->prev;
     render_view.matrix_cursor = matrix;
+    if (!advance)
+        game_flow.transition_flags = saved_game_flags;
 }
 
 void ObjectLinks::DetachChild(SceneNode *object)

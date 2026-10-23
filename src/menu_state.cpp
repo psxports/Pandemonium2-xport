@@ -4,8 +4,11 @@
 
 #include "menu_state.h"
 #include "game.h"
+#include "hd.h"
 
-MenuState menu_state = {0, 0, {0}, 0, 0, 0, 0, OriginalDefaults::MenuHighlightStep, {{0}, 0, true}, 0, {{0}}, OriginalDefaults::MenuImageAsset};
+#include "main_menu_patch.inc"
+
+MenuState menu_state = {0, 0, 0, 0, 0, 0, OriginalDefaults::MenuHighlightStep, {{0}, 0, true}, 0, {{0}}, OriginalDefaults::MenuImageAsset};
 
 struct CheatRecord
 {
@@ -55,11 +58,18 @@ void MenuState::LoadMenuImage(sint32 asset)
     FUNCTION_MARKER(0x80066DE4, "SLUS_005.78");
     if (menu_state.image_asset != asset)
     {
+        hd_menu_image_changed();
         menu_state.image_asset = asset;
         DrawSync(0);
         VSync(0);
         offset = resource_archive.Offset(asset);
 
+        if (asset == 255)
+        {
+            uint16 *image = (uint16 *)(menu_archive.data + offset);
+            for (uint32 row = 0; row < sizeof(main_menu_patch) / sizeof(main_menu_patch[0]); ++row)
+                memcpy(image + (173 + row) * 320 + 108, main_menu_patch[row], sizeof(main_menu_patch[row]));
+        }
         LoadImagePSX(&image_rect, (uint32 *)(menu_archive.data + offset));
         DrawSync(0);
         return;
@@ -261,7 +271,6 @@ void MenuState::DrawPasswordScr(sint32 requested_mode, uint8 invalid, uint8 acce
     sint32 count;
     uint32 idx;
     uint32 fade;
-    uint32 result;
     FUNCTION_MARKER(0x8006B2B8, "SLUS_005.78");
     DrawSync(0);
     VSync(0);
@@ -291,9 +300,9 @@ void MenuState::DrawPasswordScr(sint32 requested_mode, uint8 invalid, uint8 acce
     resources = menu_state.resources;
     if (resources != 0)
     {
-        saved_frame = frame_clock.render_tick;
+        saved_frame = game_tick;
         count = resources->header.tex_count;
-        frame_clock.render_tick = frame_clock.menu_tick;
+        game_tick = menu_tick;
         if (count > 0)
         {
             idx = 0;
@@ -303,7 +312,7 @@ void MenuState::DrawPasswordScr(sint32 requested_mode, uint8 invalid, uint8 acce
                 ++idx;
             } while ((sint32)idx < (sint32)menu_state.resources->header.tex_count);
         }
-        frame_clock.render_tick = saved_frame;
+        game_tick = saved_frame;
     }
     fade = menu_state.fade_frames;
     if (fade != 0)
@@ -314,8 +323,7 @@ void MenuState::DrawPasswordScr(sint32 requested_mode, uint8 invalid, uint8 acce
             ScreenRenderState::DrawOverlayRect(0, 0xF00140, (sint32)(fade << 12) / 15, 0xFFFFFF);
     }
     RenderCommands::EndDraw();
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 void MenuState::GeneratePassword(void)
@@ -441,15 +449,15 @@ sint32 MenuState::ApplyCheatPassword(void)
 uint32 MenuState::EditPassword(uint32 requested_mode)
 {
     uint8 mode = requested_mode;
-    uint32 success_until = 0;
-    uint32 error_until = 0;
+    uint64 success_until = 0;
+    uint64 error_until = 0;
     uint32 pressed;
     uint32 buttons;
     const SoundSample *sound;
     const SoundBankStorage *sound_table;
     uint32 saved_frame;
     uint32 cursor;
-    uint32 clock;
+    uint64 clock;
 
     uint32 encoded;
     uint32 power;
@@ -480,8 +488,8 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
     }
     else
         MenuState::GeneratePassword();
-    clock = frame_clock.milliseconds;
-    menu_state.pacer.fraction = 30;
+    clock = CurrentField();
+
     menu_state.last_frame = clock;
     for (;;)
     {
@@ -516,15 +524,15 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
         if (pressed & 0x10)
         {
             sound = 0;
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             sound_table = sound_resources.common_table;
             if (sound_table != 0 && sound_table->header.count > 25)
                 sound = sound_table->samples + 25;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
             if (mode != 0)
             {
                 ScreenRenderState::FadeMenuImage(0);
@@ -537,16 +545,16 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
             if (mode != 0)
             {
                 sound = 0;
-                saved_frame = frame_clock.render_tick;
+                saved_frame = game_tick;
                 digit = menu_state.password.characters[menu_state.password.cursor];
                 sound_table = sound_resources.common_table;
                 if (sound_table != 0 && sound_table->header.count > 24)
                     sound = sound_table->samples + 24;
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
                 voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
                 if (voice >= 0)
                     SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-                frame_clock.render_tick = saved_frame;
+                game_tick = saved_frame;
                 if ((pressed ^ 0x5000) & 0x3000)
                 {
                     --digit;
@@ -568,15 +576,15 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
             if (mode != 0)
             {
                 sound = 0;
-                saved_frame = frame_clock.render_tick;
+                saved_frame = game_tick;
                 sound_table = sound_resources.common_table;
                 if (sound_table != 0 && sound_table->header.count > 24)
                     sound = sound_table->samples + 24;
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
                 voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
                 if (voice >= 0)
                     SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-                frame_clock.render_tick = saved_frame;
+                game_tick = saved_frame;
                 if (pressed & 0x2000)
                 {
                     cursor = (menu_state.password.cursor + 1) & 255;
@@ -597,26 +605,26 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
         if ((pressed & 0x40) == 0)
             goto finish_i;
         sound = 0;
-        saved_frame = frame_clock.render_tick;
+        saved_frame = game_tick;
         sound_table = sound_resources.common_table;
         if (sound_table != 0 && sound_table->header.count > 25)
             sound = sound_table->samples + 25;
-        frame_clock.render_tick = frame_clock.menu_tick;
+        game_tick = menu_tick;
         voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
         if (voice >= 0)
             SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-        frame_clock.render_tick = saved_frame;
+        game_tick = saved_frame;
         if (mode == 0)
             goto finish_i;
         checked = MenuState::ApplyCheatPassword();
         if (checked != 0)
         {
             if (checked < 0)
-                error_until = menu_state.last_frame + 1000;
+                error_until = menu_state.last_frame + 60;
             else
             {
                 clock = menu_state.last_frame;
-                success_until = clock + 1000;
+                success_until = clock + 60;
                 if ((game_flow.mode_flags & 0x200) == 0)
                     goto expire_messages;
                 MenuState::DrawPasswordScr(1, 0, 1);
@@ -705,7 +713,7 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
             CharacterController::ApplyCharacterSettings(CharacterController::FindPlayerObject(0), &settings, 0);
         }
         else
-            error_until = menu_state.last_frame + 3000;
+            error_until = menu_state.last_frame + 180;
     finish_i:
         clock = menu_state.last_frame;
     expire_messages:
@@ -713,7 +721,7 @@ uint32 MenuState::EditPassword(uint32 requested_mode)
             error_until = 0;
         if (success_until < clock)
             success_until = 0;
-        frame_clock.menu_tick = frame_clock.menu_tick + 1;
+        menu_tick = menu_tick + 1;
     }
 }
 
@@ -731,7 +739,6 @@ void MenuState::DrawOptionsMenu(sint32 selection, sint32 music_volume, sint32 so
     uint32 idx;
     uint32 saved_frame;
     uint32 fade;
-    uint32 result;
     FUNCTION_MARKER(0x8006C7B4, "SLUS_005.78");
     DrawSync(0);
     VSync(0);
@@ -812,9 +819,9 @@ void MenuState::DrawOptionsMenu(sint32 selection, sint32 music_volume, sint32 so
     resources = menu_state.resources;
     if (resources != 0)
     {
-        saved_frame = frame_clock.render_tick;
+        saved_frame = game_tick;
         tex_count = resources->header.tex_count;
-        frame_clock.render_tick = frame_clock.menu_tick;
+        game_tick = menu_tick;
         if (tex_count > 0)
         {
             idx = 0;
@@ -824,7 +831,7 @@ void MenuState::DrawOptionsMenu(sint32 selection, sint32 music_volume, sint32 so
                 ++idx;
             } while ((sint32)idx < (sint32)menu_state.resources->header.tex_count);
         }
-        frame_clock.render_tick = saved_frame;
+        game_tick = saved_frame;
     }
     fade = menu_state.fade_frames;
     if (fade != 0)
@@ -835,8 +842,7 @@ void MenuState::DrawOptionsMenu(sint32 selection, sint32 music_volume, sint32 so
             ScreenRenderState::DrawOverlayRect(0, 0xF00140, (sint32)(fade << 12) / 15, 0xFFFFFF);
     }
     RenderCommands::EndDraw();
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 uint32 MenuState::RunOptionsMenu(void)
@@ -854,7 +860,7 @@ uint32 MenuState::RunOptionsMenu(void)
     uint32 old_buttons;
     uint32 buttons;
     uint32 pressed;
-    uint32 clock;
+    uint64 clock;
     FUNCTION_MARKER(0x8006CE38, "SLUS_005.78");
     ScreenRenderState::FadeMenuImage(0);
     sound_table = sound_resources.common_table;
@@ -862,8 +868,8 @@ uint32 MenuState::RunOptionsMenu(void)
     if (sound_table != 0 && sound_table->header.count > 0)
         preview_sound = sound_table->samples;
     music_volume = sound_settings.music_volume;
-    clock = frame_clock.milliseconds;
-    menu_state.pacer.fraction = 30;
+    clock = CurrentField();
+
     menu_state.fade_frames = 15;
     menu_state.last_frame = clock;
     for (;;)
@@ -877,29 +883,29 @@ uint32 MenuState::RunOptionsMenu(void)
         if (pressed & 0x10)
         {
             sound = 0;
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             sound_table = sound_resources.common_table;
             if (sound_table != 0 && sound_table->header.count > 25)
                 sound = sound_table->samples + 25;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
             break;
         }
         if (pressed & 0xA000)
         {
             sound = 0;
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             sound_table = sound_resources.common_table;
             if (sound_table != 0 && sound_table->header.count > 24)
                 sound = sound_table->samples + 24;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
             if (pressed & 0x3000)
             {
                 --selection;
@@ -924,15 +930,15 @@ uint32 MenuState::RunOptionsMenu(void)
             else if (selection == 2)
             {
                 sound = 0;
-                saved_frame = frame_clock.render_tick;
+                saved_frame = game_tick;
                 sound_table = sound_resources.common_table;
                 if (sound_table != 0 && sound_table->header.count > 25)
                     sound = sound_table->samples + 25;
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
                 voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
                 if (voice >= 0)
                     SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-                frame_clock.render_tick = saved_frame;
+                game_tick = saved_frame;
                 {
                     uint32 cursor;
                     if (pressed & 0x1000)
@@ -954,9 +960,9 @@ uint32 MenuState::RunOptionsMenu(void)
             }
             else if (selection == 0)
             {
-                saved_frame = frame_clock.render_tick;
+                saved_frame = game_tick;
                 menu_state.prev_buttons = buttons & 0xFFFFAFFF;
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
                 sound_volume = sound_settings.AdjustEffects(-dir);
                 if ((sound_effects.IsPlaying(preview_sound, preview_voice) << 24) != 0)
                     SoundEffects::SetSoundVoiceVolume(preview_voice, (sound_volume >> 4));
@@ -966,10 +972,10 @@ uint32 MenuState::RunOptionsMenu(void)
                     if (preview_voice != -1)
                         SoundEffects::PlaySoundEffect(preview_sound, preview_voice, 0, 0, 20010, sound_volume, 0);
                 }
-                frame_clock.render_tick = saved_frame;
+                game_tick = saved_frame;
             }
         }
-        frame_clock.menu_tick = frame_clock.menu_tick + 1;
+        menu_tick = menu_tick + 1;
     }
     ScreenRenderState::FadeMenuImage(0);
     menu_state.fade_frames = 15;
@@ -987,7 +993,8 @@ void MenuState::DrawQuitConfirmation(uint32 selection, uint32 mode)
     uint32 *tail_tag;
 
     FUNCTION_MARKER(0x8006D30C, "SLUS_005.78");
-    uint32 buffer, pos, extent, pointer, result;
+    hd_overlay_begin();
+    uint32 buffer, pos, extent, pointer;
     sint32 fraction;
     buffer = render_commands.other_packet_base;
     render_commands.overlay_head = 0;
@@ -1040,24 +1047,23 @@ void MenuState::DrawQuitConfirmation(uint32 selection, uint32 mode)
     tail_tag = (uint32 *)psx_addr(pointer, sizeof(uint32));
     *tail_tag |= 0xFFFFFF;
     RenderCommands::SubmitOverlayFrame(render_commands.other_packet_base, 0);
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 uint32 MenuState::RunQuitConfirmation(uint32 mode)
 {
     FUNCTION_MARKER(0x8006D678, "SLUS_005.78");
-    uint32 cur, prev, pressed, tick, val;
+    uint32 cur, prev, pressed, tick;
     const SoundBankStorage *table;
     const SoundSample *sound;
     sint32 selection, countdown, voice;
     cur = GameplayInput::ReadGamepadButtons();
-    val = frame_clock.milliseconds;
+    menu_state.last_frame = CurrentField();
     countdown = 0;
     selection = 1;
     menu_state.prev_buttons = cur;
-    menu_state.pacer.fraction = 30;
-    menu_state.last_frame = val;
+
+
     for (;;)
     {
         MenuState::DrawQuitConfirmation(selection, mode);
@@ -1073,14 +1079,14 @@ uint32 MenuState::RunQuitConfirmation(uint32 mode)
         {
             sound = 0;
             table = sound_resources.common_table;
-            tick = frame_clock.render_tick;
+            tick = game_tick;
             if (table && table->header.count > 24)
                 sound = table->samples + 24;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = tick;
+            game_tick = tick;
             if (pressed & 0x3000)
             {
                 --selection;
@@ -1100,14 +1106,14 @@ uint32 MenuState::RunQuitConfirmation(uint32 mode)
                 return 0;
             sound = 0;
             table = sound_resources.common_table;
-            tick = frame_clock.render_tick;
+            tick = game_tick;
             if (table && table->header.count > 25)
                 sound = table->samples + 25;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = tick;
+            game_tick = tick;
             if (!mode && !(MenuState::RunQuitConfirmation(1) & 0xFF))
                 return 0;
             if (mode != 1)
@@ -1120,7 +1126,7 @@ uint32 MenuState::RunQuitConfirmation(uint32 mode)
             if (countdown <= 0)
                 return 1;
         }
-        frame_clock.menu_tick = frame_clock.menu_tick + 1;
+        menu_tick = menu_tick + 1;
     }
 }
 
@@ -1129,7 +1135,8 @@ void MenuState::DrawPauseMenu(void)
     uint32 *tail_tag;
 
     FUNCTION_MARKER(0x8006D8EC, "SLUS_005.78");
-    uint32 buffer, pointer, tick, cur_tick, count, idx, elapsed, ot0_offset, result;
+    hd_overlay_begin();
+    uint32 buffer, pointer, tick, cur_tick, count, idx, elapsed, ot0_offset;
     const MenuMaterialResources *objects;
     uint32 *entries;
     buffer = render_commands.other_packet_base;
@@ -1149,10 +1156,10 @@ void MenuState::DrawPauseMenu(void)
     objects = menu_state.resources;
     if (objects)
     {
-        tick = frame_clock.render_tick;
-        cur_tick = frame_clock.menu_tick;
+        tick = game_tick;
+        cur_tick = menu_tick;
         count = objects->header.tex_count;
-        frame_clock.render_tick = cur_tick;
+        game_tick = cur_tick;
         if ((sint32)count > 0)
         {
             count = 0;
@@ -1167,7 +1174,7 @@ void MenuState::DrawPauseMenu(void)
                 ++count;
             } while ((sint32)count < (sint32)elapsed);
         }
-        frame_clock.render_tick = tick;
+        game_tick = tick;
     }
     elapsed = menu_state.fade_frames;
     if (elapsed)
@@ -1180,8 +1187,7 @@ void MenuState::DrawPauseMenu(void)
     ot0_offset = render_commands.submitted_chain_offset;
     buffer = render_commands.other_packet_base;
     RenderCommands::SubmitOverlayFrame(ot0_offset, buffer);
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 void MenuState::RunPauseMenu(uint32 level)
@@ -1189,6 +1195,7 @@ void MenuState::RunPauseMenu(uint32 level)
     uint32 *tail_tag;
 
     FUNCTION_MARKER(0x8006DAF4, "SLUS_005.78");
+    hd_pause_begin(scene_stream.active_section, CameraProjection::DrawSceneFrame);
     uint32 flags, handle, tick, val, pointer, prev, cur, pressed;
     const SoundBankStorage *table;
     const SoundSample *sound;
@@ -1201,15 +1208,15 @@ void MenuState::RunPauseMenu(uint32 level)
     AnimatedObject::PauseCharacterSound();
     sound = 0;
     table = sound_resources.common_table;
-    tick = frame_clock.render_tick;
+    tick = game_tick;
     if (table && table->header.count > 23)
         sound = table->samples + 23;
-    frame_clock.render_tick = frame_clock.menu_tick;
+    game_tick = menu_tick;
     voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
     if (voice >= 0)
         SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
     val = level_resource.level_id;
-    frame_clock.render_tick = tick;
+    game_tick = tick;
     if (!val)
     {
         pointer = hud.prompt_tail;
@@ -1220,10 +1227,10 @@ void MenuState::RunPauseMenu(uint32 level)
         }
     }
     cur = GameplayInput::ReadGamepadButtons();
-    val = frame_clock.milliseconds;
+    menu_state.last_frame = CurrentField();
     menu_state.prev_buttons = cur;
-    menu_state.pacer.fraction = 30;
-    menu_state.last_frame = val;
+
+
     for (;;)
     {
         MenuState::DrawPauseMenu();
@@ -1237,14 +1244,14 @@ void MenuState::RunPauseMenu(uint32 level)
         {
             sound = 0;
             table = sound_resources.common_table;
-            tick = frame_clock.render_tick;
+            tick = game_tick;
             if (table && table->header.count > 25)
                 sound = table->samples + 25;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = tick;
+            game_tick = tick;
             if (MenuState::RunQuitConfirmation(0) & 0xFF)
             {
                 SceneLoader::WaitSceneResourceLoad();
@@ -1255,20 +1262,21 @@ void MenuState::RunPauseMenu(uint32 level)
         MaterialRegistry::UpdateResourceMaterialAnimations();
     }
     table = sound_resources.common_table;
-    tick = frame_clock.render_tick;
+    tick = game_tick;
     sound = 0;
     gameplay_input.release_mask = 64;
     if (table && table->header.count > 23)
         sound = table->samples + 23;
-    frame_clock.render_tick = frame_clock.menu_tick;
+    game_tick = menu_tick;
     voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
     if (voice >= 0)
         SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
     handle = sequence_playback.cur_handle;
-    frame_clock.render_tick = tick;
+    game_tick = tick;
     SequencePlayback::ResumeSequence(handle);
     AnimatedObject::ResumeCharacterSound();
 finish:
+    hd_pause_end();
     game_flow.transition_flags = game_flow.transition_flags & 0xFFFFFFEF;
     sound_effects.Stop(0);
 }
@@ -1281,7 +1289,6 @@ void MenuState::DrawMainMenu(uint32 selection)
     uint32 saved_frame;
     uint32 idx;
     uint32 fade;
-    uint32 result;
     FUNCTION_MARKER(0x8006E6FC, "SLUS_005.78");
     RenderCommands::BeginDraw();
     RenderCommands::ClearSceneOrderingTable();
@@ -1296,23 +1303,18 @@ void MenuState::DrawMainMenu(uint32 selection)
         pos = 0x7D0073;
         grp = menu_state.resources->texs + 3;
     }
-    else if (selection == 2)
+    else
     {
         pos = 0x960063;
         grp = menu_state.resources->texs + 4;
-    }
-    else
-    {
-        pos = 0xB00070;
-        grp = menu_state.resources->texs + selection + 2;
     }
     MaterialCatalog::DrawTexturedQuad(pos, 0, grp, 0);
     MaterialRegistry::UpdateResourceMaterialAnimations();
     resources = menu_state.resources;
     if (resources != 0)
     {
-        saved_frame = frame_clock.render_tick;
-        frame_clock.render_tick = frame_clock.menu_tick;
+        saved_frame = game_tick;
+        game_tick = menu_tick;
         if ((sint32)resources->header.tex_count > 0)
         {
             idx = 0;
@@ -1322,7 +1324,7 @@ void MenuState::DrawMainMenu(uint32 selection)
                 ++idx;
             } while ((sint32)idx < (sint32)menu_state.resources->header.tex_count);
         }
-        frame_clock.render_tick = saved_frame;
+        game_tick = saved_frame;
     }
     fade = menu_state.fade_frames;
     if (fade != 0)
@@ -1333,8 +1335,7 @@ void MenuState::DrawMainMenu(uint32 selection)
             ScreenRenderState::DrawOverlayRect(0, 0xF00140, (sint32)(fade << 12) / 15, 0xFFFFFF);
     }
     RenderCommands::EndDraw();
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 sint32 MenuState::RunMainMenu(void)
@@ -1342,7 +1343,7 @@ sint32 MenuState::RunMainMenu(void)
     uint32 frames = 0;
     sint32 selection = 0;
     sint32 result = 1;
-    uint32 deadline;
+    uint64 deadline;
     uint32 old_buttons;
     uint32 pressed;
     const SoundSample *sound;
@@ -1353,12 +1354,12 @@ sint32 MenuState::RunMainMenu(void)
     if (character_pad.loaded_model_mask != 3)
         CharacterModelRecord::ReloadBaseCharacterModels(3);
     pressed = GameplayInput::ReadGamepadButtons();
-    deadline = frame_clock.milliseconds;
+    deadline = CurrentField();
     menu_state.prev_buttons = pressed;
-    menu_state.pacer.fraction = 30;
+
     menu_state.fade_frames = 15;
     menu_state.last_frame = deadline;
-    deadline += 30000;
+    deadline += 1800;
     for (;;)
     {
         MenuState::LoadMenuImage(255);
@@ -1374,40 +1375,40 @@ sint32 MenuState::RunMainMenu(void)
         if (pressed & 0x5000)
         {
             sound = 0;
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             sound_table = sound_resources.common_table;
             if (sound_table != 0 && sound_table->header.count > 24)
                 sound = sound_table->samples + 24;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
             if (pressed & 0x3000)
             {
                 --selection;
                 if (selection < 0)
-                    selection = 3;
+                    selection = 2;
             }
             else
             {
                 ++selection;
-                if (selection == 4)
+                if (selection == 3)
                     selection = 0;
             }
         }
         else if (pressed & 0x40)
         {
             sound = 0;
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             sound_table = sound_resources.common_table;
             if (sound_table != 0 && sound_table->header.count > 25)
                 sound = sound_table->samples + 25;
-            frame_clock.render_tick = frame_clock.menu_tick;
+            game_tick = menu_tick;
             voice = sound_effects.SelectVoice(0xFFFFFFFF, sound, 4);
             if (voice >= 0)
                 SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
             switch (selection)
             {
                 case 0:
@@ -1421,17 +1422,13 @@ sint32 MenuState::RunMainMenu(void)
                 case 1:
                     MenuState::RunOptionsMenu();
                     break;
-                default:
-                    game_flow.attract_phase = 2;
-                    result = 0;
-                    goto finish;
             }
         }
         if (pressed != 0 || menu_state.prev_buttons != 0)
-            deadline = menu_state.last_frame + 30000;
+            deadline = menu_state.last_frame + 1800;
         if (menu_state.last_frame >= deadline)
             break;
-        frame_clock.menu_tick = frame_clock.menu_tick + 1;
+        menu_tick = menu_tick + 1;
     }
     result = 0;
 finish:

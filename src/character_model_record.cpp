@@ -4,6 +4,7 @@
 
 #include "character_model_record.h"
 #include "game.h"
+#include "hd.h"
 
 CharacterModelRecord character_model_headers[CharacterController::ModelCount];
 
@@ -33,6 +34,7 @@ void CharacterModelRecord::ReloadBaseCharacterModels(uint32 mode)
     AnimatedObject *loaded_object;
     SpriteRecord *spr;
     FUNCTION_MARKER(0x80044508, "SLUS_005.78");
+    hd_invalidate_geometry();
     AnimatedObject *objects[2];
     uint32 selector, asset0, asset1, asset;
     uint32 slot, idx, val, selection;
@@ -205,6 +207,7 @@ void CharacterModelRecord::LoadCharacterModel(uint32 idx)
     SpriteRecord *spr;
 
     FUNCTION_MARKER(0x800552FC, "SLUS_005.78");
+    hd_invalidate_geometry();
     uint32 metadata_bytes = resource_archive.Size(resource_load_cursor.asset);
     uint8 *metadata_input = (uint8 *)malloc(metadata_bytes);
     resource_archive.ReadAsset(resource_load_cursor.asset, metadata_input, 1, resource_load_cursor.container_asset);
@@ -332,6 +335,7 @@ void CharacterModelRecord::InitializeCharacterModels(void)
     uint32 idx;
     uint32 next;
     FUNCTION_MARKER(0x80055AC4, "SLUS_005.78");
+    hd_invalidate_geometry();
     {
         ObjectCallback operation = {0, &AnimatedObject::UpdateCharacterMovement};
         object_operations.motions[1] = operation;
@@ -626,6 +630,7 @@ AnimatedObject *CharacterModelRecord::GetCharacterModelObject(void)
 void CharacterModelRecord::ClearCharacterModels(void)
 {
     FUNCTION_MARKER(0x80060EBC, "SLUS_005.78");
+    hd_invalidate_geometry();
     CharacterModelRecord::ClearPrimaryModelSlots();
     /* 80034BA0 returns without effects */
     for (uint32 grp_idx = ModelGroupRegistry::CommonCount; grp_idx < ModelGroupRegistry::Capacity; ++grp_idx)

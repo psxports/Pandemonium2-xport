@@ -22,14 +22,14 @@ void MaterialRegistry::UpdateResourceMaterialAnimations(void)
     {
         if (idx == 1 || idx == 5 || ((game_flow.transition_flags & 0x10) == 0 && idx >= 13))
         {
-            saved_frame = frame_clock.render_tick;
+            saved_frame = game_tick;
             if (idx == 1 || idx == 5)
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
             MaterialAnimationList::UpdateMaterialAnimationList(resource_grps[idx].animation_entries);
-            frame_clock.render_tick = saved_frame;
+            game_tick = saved_frame;
         }
     }
-    frame_clock.menu_tick = frame_clock.menu_tick + 1;
+    menu_tick = menu_tick + 1;
 }
 
 uint8 *MaterialRegistry::ResetMaterialRegistry(void)

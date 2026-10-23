@@ -9,6 +9,7 @@
 #include "collision.h"
 #include "global.h"
 #include "psx_gte.h"
+#include "hd.h"
 
 static const sint8 action_start_mode = 1;
 
@@ -92,6 +93,13 @@ void AnimatedObject::DrawGeometry(const MorphSpan *span) const
     polygon_count = span->polygon_count;
     if (polygon_count == 0)
         return;
+    hd_frame_actor(this, span, &scene_lighting, render_view.material_override, render_view.lighting_enabled ? 0.0f : render_view.object_depth_bias,
+        !render_view.lighting_enabled && (game_flow.transition_flags & 0x20) != 0, render_view.fog_color);
+    if (hd_frame.active)
+    {
+        SetRotMatrix(&render_view.matrix_cursor->matrix);
+        return;
+    }
     matrix = render_view.matrix_cursor;
     cur_matrix = &matrix->matrix;
     {
@@ -727,7 +735,7 @@ void AnimatedObject::RebuildMorphNormals(const MorphSpan *span) const
     Vec3 edge1;
     Vec3 n;
     MeshVertex *vertex0, *vertex1, *vertex2, *vertex3;
-    uint32 x, y, z, dot, plane, i;
+    uint32 dot, plane, i;
     MATRIX *parent_matrix;
     vertices_val = vertices + first_vertex;
     if (remaining != 0)
@@ -745,25 +753,19 @@ void AnimatedObject::RebuildMorphNormals(const MorphSpan *span) const
             edge1.x = vertex3->pos.vx - (uint32)vertex1->pos.vx;
             edge1.y = vertex3->pos.vy - (uint32)vertex1->pos.vy;
             edge1.z = vertex3->pos.vz - (uint32)vertex1->pos.vz;
-            xport_gte_write_control(0, edge0.x);
-            xport_gte_write_control(2, edge0.y);
-            xport_gte_write_control(4, edge0.z);
-            xport_gte_write_data(11, edge1.z);
-            xport_gte_write_data(9, edge1.x);
-            xport_gte_write_data(10, edge1.y);
-            xport_gte_execute(0x178000C);
-            n.x = xport_gte_read_data(25);
-            n.y = xport_gte_read_data(26);
-            n.z = xport_gte_read_data(27);
-            while (n.x + 26754u > 0xD103u || n.y + 26754u > 0xD103u || n.z + 26754u > 0xD103u)
+            // Keep small morph faces nonzero before normalizing
+            sint64 nx = (sint64)edge0.y * edge1.z - (sint64)edge0.z * edge1.y;
+            sint64 ny = (sint64)edge0.z * edge1.x - (sint64)edge0.x * edge1.z;
+            sint64 nz = (sint64)edge0.x * edge1.y - (sint64)edge0.y * edge1.x;
+            while (nx < -26754 || nx > 26754 || ny < -26754 || ny > 26754 || nz < -26754 || nz > 26754)
             {
-                x = n.x >> 1;
-                y = n.y >> 1;
-                z = n.z >> 1;
-                n.x = x;
-                n.y = y;
-                n.z = z;
+                nx >>= 1;
+                ny >>= 1;
+                nz >>= 1;
             }
+            n.x = nx;
+            n.y = ny;
+            n.z = nz;
             {
                 VECTOR n_input = {n.x, n.y, n.z, 0};
                 SVECTOR n_output;
@@ -1315,7 +1317,11 @@ uint32 AnimatedObject::AdvanceTracks(sint32 step)
                     if (sample_frame >= limit)
                     {
                         if ((cur_track->flags & 2) != 0)
+                        {
                             cur_track->frame = (sum & 0x8000) != 0 ? limit - 1 : 0;
+                            if (grp == 0 && (cur_track->flags & 3) == 2 && cur_track->frame != (sint16)sum)
+                                hd_sprite_track_loop(this, cur_track);
+                        }
                         else if (limit < sample_frame)
                         {
                             cur_track->frame = sum - step;
@@ -7503,7 +7509,7 @@ uint32 AnimatedObject::CollectActorContact(SceneNode *other_node, CollisionConta
             kind = (sint8)(other->state_flags >> 8);
             if (kind == 13)
             {
-                val = frame_clock.render_tick;
+                val = game_tick;
                 timeout = ((const SceneTrigger *)other)->parameters.reaction.deadline;
                 if (val >= timeout)
                     return 1;
@@ -7552,7 +7558,7 @@ uint32 AnimatedObject::CollectActorContact(SceneNode *other_node, CollisionConta
             val = ((const SceneTrigger *)other)->parameters.reaction.flags;
             binding->reaction_flags = (cur_flags & 0xFFFF01FF) | ((val & 0x7F) << 9);
             timeout = ((const SceneTrigger *)other)->parameters.reaction.flags >> 16;
-            val = frame_clock.render_tick;
+            val = game_tick;
             ((SceneTrigger *)other)->parameters.reaction.deadline = val + timeout;
         }
         else if (kind == 14)
@@ -15575,6 +15581,8 @@ void AnimatedObject::FinishCharacterCameraTransition()
 {
     const PathDefinition *parent;
     FUNCTION_MARKER(0x80045D0C, "SLUS_005.78");
+    hd_forget_pose(&node);
+    hd_camera_cut();
 
     VECTOR vector;
 
@@ -16360,7 +16368,7 @@ uint32 AnimatedObject::CanCharacterContact(const SceneNode *other_node) const
                     return 0;
                 if ((cur_flags & 0x8000000) != 0 && ((uint16)(character_pad.motion.form_flags >> 16) & 0xF) == 4)
                     return 0;
-                val = frame_clock.render_tick;
+                val = game_tick;
                 return val >= ((const SceneTrigger *)other)->parameters.damage.deadline;
             case 6:
                 return (flags & 0x400) != 0 && character_pad.motion.vertical_speed < 0;
@@ -16949,6 +16957,8 @@ uint32 AnimatedObject::ResetCharacterForScene(sint32 mode)
     AnimatedObject *model_object;
     SpriteRecord *spr;
     FUNCTION_MARKER(0x80048AF0, "SLUS_005.78");
+    hd_forget_pose(&node);
+    hd_camera_cut();
     uint32 cur_flags, val, packed, category, result = 1;
     sint32 sel;
     HudState::ResetHud();
@@ -19799,7 +19809,7 @@ void AnimatedObject::ApplyCharacterContactMotion()
         character_pad.movement_flags = character_pad.movement_flags | 0x2000000;
     else if (motion0.y <= 0)
         goto rotate_velocity;
-    if ((frame_clock.render_tick & 1) != 0 && character_pad.motion.trail_effect >= 0 && (path_flags & 0x400011) == 0)
+    if ((game_tick & 1) != 0 && character_pad.motion.trail_effect >= 0 && (path_flags & 0x400011) == 0)
     {
         cur = camera_motion.path;
         definition = cur->definition;
@@ -20879,7 +20889,7 @@ void AnimatedObject::ProcessCharacterTriggers()
             event = character_pad.support.contact;
             character_pad.vitals.damage_amount = val;
             val = (((const SceneTrigger *)event)->parameters.damage.flags >> 16);
-            val += frame_clock.render_tick;
+            val += game_tick;
             ((SceneTrigger *)event)->parameters.damage.deadline = val;
         }
     }
@@ -25585,6 +25595,7 @@ void AnimatedObject::RelocateResourceMaterials(const MaterialCatalog *resource, 
     uint32 kind;
     uint32 val;
     FUNCTION_MARKER(0x80068570, "SLUS_005.78");
+    hd_invalidate_geometry();
     free(*polygon_owner);
     *polygon_owner = 0;
     free(*vertex_owner);

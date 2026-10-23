@@ -210,7 +210,8 @@ void CharacterPreview::Draw()
 
     preview_object->world_pos = camera_motion.focus_pos;
     preview_object->bounds.radius = 40960;
-    object->node.Register();
+    // Temporary draw-list membership preserves the live preview pose
+    object->node.Register(false);
 
     preview_object->pos = camera_motion.focus_pos;
     x = preview_object->pos.x;
@@ -276,7 +277,8 @@ void CharacterPreview::DrawCompletionFrame(sint32 percent, uint32 flags, sint32 
     const MenuMaterialResources *resources;
     FUNCTION_MARKER(0x8006E098, "SLUS_005.78");
     char text[40];
-    uint32 val, result;
+    uint32 val;
+    game_field = menu_state.last_frame;
     RenderCommands::BeginDraw();
     preview->Draw();
     RenderCommands::ClearSceneOrderingTable();
@@ -311,17 +313,17 @@ void CharacterPreview::DrawCompletionFrame(sint32 percent, uint32 flags, sint32 
     resources = menu_state.resources;
     if (resources != 0)
     {
-        uint32 tick = frame_clock.render_tick;
+        uint32 tick = game_tick;
         sint32 count = resources->header.tex_count;
         sint32 idx = 0;
-        frame_clock.render_tick = frame_clock.menu_tick;
+        game_tick = menu_tick;
         while (idx < count)
         {
             MaterialAnimationList::UpdateMaterialAnimationList(menu_state.material_grps[idx].animation_entries);
             count = menu_state.resources->header.tex_count;
             ++idx;
         }
-        frame_clock.render_tick = tick;
+        game_tick = tick;
     }
     val = menu_state.fade_frames;
     if (val != 0)
@@ -332,8 +334,7 @@ void CharacterPreview::DrawCompletionFrame(sint32 percent, uint32 flags, sint32 
             ScreenRenderState::DrawOverlayRect(0, 0xF00140, (sint32)(val << 12) / 15, 0xFFFFFF);
     }
     RenderCommands::EndDraw();
-    result = menu_state.pacer.Wait(menu_state.last_frame);
-    menu_state.last_frame = result;
+    menu_state.last_frame = WaitGameFrame(menu_state.last_frame);
 }
 
 uint32 CharacterPreview::ShowLevelCompletion(uint32 level, sint8 mode)
@@ -391,8 +392,8 @@ uint32 CharacterPreview::ShowLevelCompletion(uint32 level, sint8 mode)
     preview.velocity.x = 0;
     preview.velocity.z = -4096;
     menu_state.prev_buttons = GameplayInput::ReadGamepadButtons();
-    menu_state.pacer.fraction = 30;
-    menu_state.last_frame = frame_clock.milliseconds;
+
+    menu_state.last_frame = CurrentField();
     for (;;)
     {
         sint32 height;
@@ -416,22 +417,22 @@ uint32 CharacterPreview::ShowLevelCompletion(uint32 level, sint8 mode)
             {
                 sint32 voice;
                 table = sound_resources.common_table;
-                tick = frame_clock.render_tick;
+                tick = game_tick;
                 sound = 0;
                 gameplay_input.release_mask = 64;
                 if (table != 0 && table->header.count > 25)
                     sound = table->samples + 25;
-                frame_clock.render_tick = frame_clock.menu_tick;
+                game_tick = menu_tick;
                 voice = sound_effects.SelectVoice(-1, sound, 4);
                 if (voice >= 0)
                     SoundEffects::PlaySoundEffect(sound, voice, 0, 0, 0, sound_settings.effects_volume, 0);
-                frame_clock.render_tick = tick;
+                game_tick = tick;
                 break;
             }
         }
         if ((loaded & 255) == 0)
             loaded = LevelLoader::PollLevelLoadResult(next_level);
-        frame_clock.menu_tick = frame_clock.menu_tick + 1u;
+        menu_tick = menu_tick + 1u;
     }
     if ((loaded & 255) == 0)
     {

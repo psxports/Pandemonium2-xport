@@ -6,10 +6,11 @@
 #include "game.h"
 #include "collision.h"
 #include "psx_gte.h"
+#include "hd.h"
 
 SceneNode *registered_object_head = 0;
 
-void SceneNode::DrawChildren(AnimatedObject *owner)
+void SceneNode::DrawChildren(AnimatedObject *owner, bool advance)
 {
     // Q27 unity becomes Q12 after the coefficient shift
     SceneNode *child;
@@ -55,6 +56,7 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
     uint32 radius;
     uint32 scale;
     Vec3 maximum;
+    bool pose_prepared;
 
     sint32 qw;
     sint32 qx;
@@ -96,9 +98,11 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
         }
     }
     render_view.matrix_cursor = matrix->next;
+    hd_frame_push(&render_view.matrix_cursor->matrix);
     while (child != 0)
     {
-        if ((owner->node.flags & 0x40) != 0)
+        pose_prepared = false;
+        if (advance && (owner->node.flags & 0x40) != 0)
             owner->SampleNodeAnimation(child);
         matrix = render_view.matrix_cursor;
         cur_matrix = &matrix->matrix;
@@ -110,7 +114,13 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
             part = (MeshPartNode *)child;
             if (render_view.special_transform != 0)
             {
-                if (owner->velocity.x != 0)
+                if (!advance)
+                {
+                    cur_matrix->t[0] = part->pos.x;
+                    cur_matrix->t[1] = part->pos.y;
+                    cur_matrix->t[2] = part->pos.z;
+                }
+                else if (owner->velocity.x != 0)
                 {
                     {
                         VECTOR rotation_input = {part->pos.x, part->pos.y, part->pos.z, 0};
@@ -278,6 +288,8 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
             }
             SetRotMatrix(rotation_matrix);
         node_rotation_ready:
+            hd_frame_node(child, owner);
+            pose_prepared = true;
             if ((owner->flags & 0x200) == 0)
                 owner->DrawGeometry(&part->span);
         }
@@ -316,7 +328,7 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
                 cur_matrix->t[1] = y + py;
                 cur_matrix->t[2] = z + pz;
             }
-            if ((owner->flags & 0x20000) != 0 && (child->state_flags & 0x200) == 0)
+            if (advance && (owner->flags & 0x20000) != 0 && (child->state_flags & 0x200) == 0)
             {
                 val = child->flags;
                 child->flags = val & 0xFE;
@@ -331,9 +343,11 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
                 parent_matrix = matrix->prev != 0 ? &matrix->prev->matrix : 0;
                 memcpy(cur_matrix->m, parent_matrix->m, sizeof(cur_matrix->m));
             }
+            hd_frame_node(child, owner);
+            pose_prepared = true;
             if ((owner->flags & 0x200) == 0)
             {
-                if (((uint32)MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) << 24) != 0)
+                if (!advance || (owner->flags & 0x200) != 0 || ((uint32)MaterialAnimationList::UpdateMaterialAnimationList(spr->animation_entries) << 24) != 0)
                 {
                     render_view.object_depth_bias = (uint16)render_view.object_depth_bias - 256;
                     spr->Draw();
@@ -371,6 +385,8 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
             cur_matrix->t[0] = x + px;
             cur_matrix->t[1] = y + py;
             cur_matrix->t[2] = z + pz;
+            if (!advance)
+                goto visit_children;
             sphere = render_view.sphere_output;
             render_view.sphere_output = (CollisionSphere *)((uint8 *)sphere + sizeof(CollisionSphere));
             x = cur_matrix->t[0];
@@ -446,16 +462,20 @@ void SceneNode::DrawChildren(AnimatedObject *owner)
             }
         }
     visit_children:
-        child->DrawChildren(owner);
+        if (!pose_prepared)
+            hd_frame_node(child, owner);
+        child->DrawChildren(owner, advance);
     next_node:
         child = child->links.sibling_next;
     }
+    hd_frame_pop();
     render_view.matrix_cursor = render_view.matrix_cursor->prev;
 }
 
 uint32 SceneNode::ResetPlayback(const SceneNode *parent)
 {
     FUNCTION_MARKER(0x80013CEC, "SLUS_005.78");
+    hd_forget_pose(this);
     uint32 category = kind;
     uint32 cur_flags, val;
     sint32 kind_val;
@@ -647,6 +667,7 @@ const MeshFace *SceneNode::SelectColFace(const SceneNode *object, uint32 selecti
 void SceneNode::ReleaseSceneObject(SceneNode *object)
 {
     FUNCTION_MARKER(0x80025EAC, "SLUS_005.78");
+    hd_forget_pose(object);
     SceneNode *node = object;
     AnimatedObject *actor;
 
@@ -697,6 +718,7 @@ void SceneNode::MoveBetweenLists(SceneNode **src_head, SceneNode **dst_head)
 void SceneNode::RelocateClone(uint8 *dst, const uint8 *src)
 {
     FUNCTION_MARKER(0x8003FF6C, "SLUS_005.78");
+    hd_forget_pose(this, false);
     SceneNode *child;
     uint32 *entries;
     child = links.first_child;
@@ -728,10 +750,12 @@ void SceneNode::RelocateClone(uint8 *dst, const uint8 *src)
     }
 }
 
-void SceneNode::Register()
+void SceneNode::Register(bool new_lifetime)
 {
     SceneNode *prev;
     FUNCTION_MARKER(0x800401A8, "SLUS_005.78");
+    if (new_lifetime)
+        hd_forget_pose(this);
     flags &= 0x7F;
     prev = registered_object_head;
     registered_object_head = this;
@@ -751,6 +775,10 @@ void SceneNode::DrawBillboard() const
     POLY_FT4 *poly;
     const SceneSection *section;
     FUNCTION_MARKER(0x80064358, "SLUS_005.78");
+    if (kind == 8)
+        hd_frame_billboard((const BillboardNode *)this, &render_view.matrix_cursor->matrix, render_view.object_depth_bias);
+    if (kind == 8 && hd_frame.active)
+        return;
     const SpriteRecord *spr = 0;
     const BillboardNode *billboard;
     const TextureDescriptor *desc;

@@ -4,6 +4,7 @@
 
 #include "resource_group.h"
 #include "game.h"
+#include "hd.h"
 
 ResourceGroup resource_grps[35] = {{0}};
 
@@ -97,6 +98,7 @@ uint32 ResourceGroup::ClearResourceGrpLists(void)
 void ResourceGroup::ReleaseResourceGrps(void)
 {
     FUNCTION_MARKER(0x8002A794, "SLUS_005.78");
+    hd_invalidate_geometry();
     uint32 idx;
     for (idx = 0; idx < 35; ++idx)
     {

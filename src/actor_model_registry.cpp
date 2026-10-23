@@ -4,6 +4,7 @@
 
 #include "actor_model_registry.h"
 #include "game.h"
+#include "hd.h"
 
 // Original constructor order includes the reserved slot before the attack actor
 static const ActorModelDefinition::Constructor actor_constructors[48] = {&AnimatedObject::InitializeCommonActor,
@@ -60,6 +61,7 @@ ActorModelRegistry actor_models = {0};
 uint32 ActorModelRegistry::LoadActorModel(uint32 idx)
 {
     FUNCTION_MARKER(0x8003420C, "SLUS_005.78");
+    hd_invalidate_geometry();
     uint32 asset, counter, saved_flags, val;
     sint32 callback_idx;
     asset = resource_load_cursor.asset;
@@ -233,6 +235,7 @@ uint32 ActorModelRegistry::LoadActorModel(uint32 idx)
 void ActorModelRegistry::ResetActorModels(void)
 {
     FUNCTION_MARKER(0x80034B38, "SLUS_005.78");
+    hd_invalidate_geometry();
     for (uint32 model_idx = 0; model_idx < sizeof(actor_models.definitions) / sizeof(actor_models.definitions[0]); ++model_idx)
     {
         free(actor_models.definitions[model_idx].material_resource.texs);
@@ -245,6 +248,7 @@ void ActorModelRegistry::ResetActorModels(void)
         actor_models.definitions[model_idx].model_polygons = 0;
         free(actor_models.definitions[model_idx].model_data);
         actor_models.definitions[model_idx].model_data = 0;
+        actor_models.definitions[model_idx].prototype = 0;
         actor_models.definitions[model_idx].model_bytes = 0;
         free(actor_models.definitions[model_idx].animation_data);
         if (actor_models.definitions[model_idx].animation_headers != 0)

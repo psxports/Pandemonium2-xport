@@ -3,6 +3,7 @@
 
 #include "screen_render_state.h"
 #include "game.h"
+#include "hd.h"
 
 ScreenRenderState scr_render = {0};
 
@@ -14,11 +15,21 @@ void ScreenRenderState::StartSceneFadeIn(void)
     scr_render.transition_ticks = 15;
 }
 
-uint32 ScreenRenderState::UpdateScrEffects(void)
+uint32 ScreenRenderState::UpdateScrEffects(bool advance)
 {
     FUNCTION_MARKER(0x8005CF3C, "SLUS_005.78");
     uint32 result, val;
     sint32 fade, numerator, remaining, duration, half, intensity;
+    if (!advance)
+    {
+        if (scr_render.render_effect == 1)
+            return ScreenRenderState::DrawScrDarken(scr_render.render_intensity);
+        if (scr_render.render_effect == 2)
+            return ScreenRenderState::DrawScrBrighten(scr_render.render_intensity);
+        return scr_render.render_effect_result;
+    }
+    scr_render.render_effect = 0;
+    scr_render.render_effect_result = 0;
     fade = scr_render.transition_ticks;
     if (fade != 0)
     {
@@ -39,6 +50,8 @@ uint32 ScreenRenderState::UpdateScrEffects(void)
             if (fade == 0)
                 scr_render.transition_ticks = -1;
         }
+        scr_render.render_effect = 1;
+        scr_render.render_intensity = intensity;
         return ScreenRenderState::DrawScrDarken(intensity);
     }
     result = 0;
@@ -62,16 +75,24 @@ uint32 ScreenRenderState::UpdateScrEffects(void)
                 numerator = (uint32)remaining << 12;
                 intensity = numerator / half;
             }
+            scr_render.render_effect = 2;
+            scr_render.render_intensity = intensity;
             return ScreenRenderState::DrawScrBrighten(intensity);
         }
     }
     remaining = scr_render.darken_ticks;
     if (remaining <= 0)
+    {
+        scr_render.render_effect_result = result;
         return result;
+    }
     duration = scr_render.darken_duration;
     result = duration < 2;
     if (duration < 2)
+    {
+        scr_render.render_effect_result = result;
         return result;
+    }
     --remaining;
     scr_render.darken_ticks = remaining;
     half = duration / 2;
@@ -85,16 +106,18 @@ uint32 ScreenRenderState::UpdateScrEffects(void)
         numerator = (uint32)remaining << 12;
         intensity = numerator / half;
     }
+    scr_render.render_effect = 1;
+    scr_render.render_intensity = intensity;
     return ScreenRenderState::DrawScrDarken(intensity);
 }
 
-void ScreenRenderState::DrawSceneInterface(void)
+void ScreenRenderState::DrawSceneInterface(bool advance)
 {
     FUNCTION_MARKER(0x8005D170, "SLUS_005.78");
 
-    BackgroundResource::DrawSceneBackground();
-    HudState::DrawHud(CharacterController::FindPlayerObject(0));
-    ScreenRenderState::UpdateScrEffects();
+    BackgroundResource::DrawSceneBackground(advance);
+    HudState::DrawHud(CharacterController::FindPlayerObject(0), advance);
+    ScreenRenderState::UpdateScrEffects(advance);
     ScreenRenderState::EmptyScrOperation();
 }
 
@@ -107,6 +130,8 @@ void ScreenRenderState::EmptyScrOperation(void)
 void ScreenRenderState::DrawSceneFade(void)
 {
     FUNCTION_MARKER(0x80064A58, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_scene_fade(scr_render.fade_level, ScreenRenderState::DrawSceneFade))
+        hd_frame.failed = true;
     uint32 brightness, table, packet, color, val;
     DR_MODE *mode;
     TILE *rect;
@@ -117,6 +142,7 @@ void ScreenRenderState::DrawSceneFade(void)
     packet = render_commands.packet_offset;
     brightness = (255 * brightness + 2048) >> 12;
     color = brightness | (brightness << 8) | (brightness << 16);
+    hd_frame_rect(0, 0xF00140, color, VID_BLEND_SUBTRACT, HD_SCENE_FADE);
     mode = (DR_MODE *)psx_addr(packet, sizeof(DR_MODE));
     rect = (TILE *)psx_addr(packet + 12, sizeof(TILE));
     setTile(rect);
@@ -171,6 +197,8 @@ void ScreenRenderState::DrawOverlayRect(uint32 pos, uint32 extent, sint32 fracti
     DR_MODE *mode;
     TILE *rect;
     FUNCTION_MARKER(0x800651BC, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_rect(pos, extent, fraction, color, ScreenRenderState::DrawOverlayRect))
+        hd_frame.failed = true;
     if (fraction >= 4096)
     {
         r = color & 255;
@@ -186,6 +214,7 @@ void ScreenRenderState::DrawOverlayRect(uint32 pos, uint32 extent, sint32 fracti
     else
         r = g = b = 0;
     color = r | (g << 8) | (b << 16);
+    hd_frame_rect(pos, extent, color, VID_BLEND_SUBTRACT, HD_OVERLAY);
     if (render_commands.overlay_head == 0)
         render_commands.overlay_head = render_commands.packet_offset;
     packet = render_commands.packet_offset;
@@ -213,6 +242,8 @@ void ScreenRenderState::DrawBrightenRect(uint32 pos, uint32 extent, sint32 fract
     uint32 packet;
     uint32 next;
     FUNCTION_MARKER(0x800652E4, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_rect(pos, extent, fraction, color, ScreenRenderState::DrawBrightenRect))
+        hd_frame.failed = true;
     if (fraction >= 4096)
     {
         r = color & 255;
@@ -228,6 +259,7 @@ void ScreenRenderState::DrawBrightenRect(uint32 pos, uint32 extent, sint32 fract
     else
         r = g = b = 0;
     color = r | (g << 8) | (b << 16);
+    hd_frame_rect(pos, extent, color, VID_BLEND_ADD, HD_OVERLAY);
     if (render_commands.overlay_head == 0)
         render_commands.overlay_head = render_commands.packet_offset;
     packet = render_commands.packet_offset;
@@ -248,6 +280,8 @@ void ScreenRenderState::DrawBrightenRect(uint32 pos, uint32 extent, sint32 fract
 uint32 ScreenRenderState::DrawScrBrighten(sint32 intensity)
 {
     FUNCTION_MARKER(0x80065F78, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_effect(intensity, ScreenRenderState::DrawScrBrighten))
+        hd_frame.failed = true;
     uint32 color, packet, next_packet;
     DR_MODE *mode;
     TILE *rect;
@@ -258,6 +292,7 @@ uint32 ScreenRenderState::DrawScrBrighten(sint32 intensity)
     else
         color = 0;
     color |= (color << 8) | (color << 16);
+    hd_frame_rect(0, 0xF00140, color, VID_BLEND_ADD, HD_OVERLAY);
     if (render_commands.overlay_head == 0)
         render_commands.overlay_head = render_commands.packet_offset;
     packet = render_commands.packet_offset;
@@ -280,6 +315,8 @@ uint32 ScreenRenderState::DrawScrBrighten(sint32 intensity)
 uint32 ScreenRenderState::DrawScrDarken(sint32 intensity)
 {
     FUNCTION_MARKER(0x80066070, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_effect(intensity, ScreenRenderState::DrawScrDarken))
+        hd_frame.failed = true;
     uint32 color, packet, next_packet;
     DR_MODE *mode;
     TILE *rect;
@@ -290,6 +327,7 @@ uint32 ScreenRenderState::DrawScrDarken(sint32 intensity)
     else
         color = 0;
     color |= (color << 8) | (color << 16);
+    hd_frame_rect(0, 0xF00140, color, VID_BLEND_SUBTRACT, HD_OVERLAY);
     if (render_commands.overlay_head == 0)
         render_commands.overlay_head = render_commands.packet_offset;
     packet = render_commands.packet_offset;
@@ -360,6 +398,7 @@ void ScreenRenderState::SaveMenuImage(void)
     sint32 y;
     PSX_RECT rect;
     FUNCTION_MARKER(0x80066978, "SLUS_005.78");
+    hd_save_image();
     DrawSync(0);
     VSync(0);
     active = render_commands.active_buffer;
@@ -409,6 +448,7 @@ void ScreenRenderState::RestoreMenuImage(uint32 mode)
     sint32 y;
     PSX_RECT rect;
     FUNCTION_MARKER(0x80066AF0, "SLUS_005.78");
+    hd_restore_image(&OriginalDefaults::menu_img_rect);
     active = render_commands.active_buffer;
     rect = OriginalDefaults::menu_img_rect;
     y = render_buffers[1 - active].draw.clip.y;
@@ -421,6 +461,11 @@ void ScreenRenderState::RestoreMenuImage(uint32 mode)
 void ScreenRenderState::DrawBackgroundRect(uint32 pos, uint32 extent, uint32 color)
 {
     FUNCTION_MARKER(0x80066BDC, "SLUS_005.78");
+    if (hd_frame.collecting && !hd_frame.failed && !hd_og_background_rect(pos, extent, color, ScreenRenderState::DrawBackgroundRect))
+        hd_frame.failed = true;
+    hd_frame_rect(pos, extent, color, VID_BLEND_NONE, HD_BACKGROUND);
+    if (hd_og_skip_background())
+        return;
     uint32 ordering_table = render_commands.scene_ordering_table_offset;
     uint32 packet = render_commands.aux_packet_offset;
     uint32 *ot_entry = (uint32 *)psx_addr(ordering_table + 2400, sizeof(uint32));
@@ -440,19 +485,14 @@ void ScreenRenderState::DrawBackgroundRect(uint32 pos, uint32 extent, uint32 col
 void ScreenRenderState::FadeMenuImage(uint32 color)
 {
     uint32 step;
-    uint32 prev;
-    uint32 deadline;
-    uint32 wait;
-    sint32 fraction = 30;
     sint32 strength;
     FUNCTION_MARKER(0x80067160, "SLUS_005.78");
     ScreenRenderState::SaveMenuImage();
-    frame_clock.frame_start = frame_clock.milliseconds;
+    game_field = CurrentField();
     for (step = 2; step < 31; step += 2)
     {
         if (color == 0 || color == 0xFFFFFF)
         {
-            prev = frame_clock.frame_start;
             RenderCommands::BeginDraw();
             RenderCommands::ClearSceneOrderingTable();
             ScreenRenderState::RestoreMenuImage(1);
@@ -472,30 +512,18 @@ void ScreenRenderState::FadeMenuImage(uint32 color)
             ScreenRenderState::DrawOverlayRect(0, 0xF00140, strength, ~color | 0xFFFFFF);
             ScreenRenderState::DrawBrightenRect(0, 0xF00140, strength, color);
             RenderCommands::EndDraw();
-            prev = frame_clock.frame_start;
         }
-        fraction -= 10;
-        wait = 33;
-        if (fraction <= 0)
-        {
-            wait = 34;
-            fraction += 30;
-        }
-        deadline = prev + wait;
-        while (frame_clock.milliseconds < deadline)
-            psx_native_poll_events();
-        frame_clock.milliseconds;
-        frame_clock.frame_start = frame_clock.milliseconds;
+        game_field = WaitGameFrame(game_field);
     }
 }
 
-uint32 ScreenRenderState::DrawGameOverFade(void)
+uint64 ScreenRenderState::DrawGameOverFade(void)
 {
     FUNCTION_MARKER(0x80067778, "SLUS_005.78");
-    sint32 remaining = 30, fraction = 30;
-    uint32 fade = 273, result, delay, deadline;
+    sint32 remaining = 30;
+    uint32 fade = 273;
     ScreenRenderState::SaveMenuImage();
-    frame_clock.frame_start = frame_clock.milliseconds;
+    game_field = CurrentField();
     do
     {
         uint32 style = fade < 4096 ? (fade << 16) | 1 : 1;
@@ -505,20 +533,9 @@ uint32 ScreenRenderState::DrawGameOverFade(void)
         ScreenRenderState::RestoreMenuImage(1);
         UiText::DrawText(0x7800A0, UiText::game_over, style, 0);
         RenderCommands::EndDraw();
-        delay = 33;
-        fraction -= 10;
-        if (fraction <= 0)
-        {
-            delay = 34;
-            fraction += 30;
-        }
-        deadline = frame_clock.frame_start + delay;
-        while (frame_clock.milliseconds < deadline)
-            psx_native_poll_events();
-        result = frame_clock.milliseconds;
-        frame_clock.frame_start = result;
+        game_field = WaitGameFrame(game_field);
         --remaining;
         fade += 273;
     } while (remaining != 0);
-    return result;
+    return game_field;
 }

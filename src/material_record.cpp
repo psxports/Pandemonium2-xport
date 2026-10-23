@@ -4,6 +4,7 @@
 
 #include "material_record.h"
 #include "game.h"
+#include "hd.h"
 
 void MaterialRecord::CyclePal(uint8 *animation, uint32 frame) const
 {
@@ -123,6 +124,7 @@ uint32 MaterialRecord::UpdateMaterialAnimation(uint32 *entry, uint32 frame)
     {
         phase = ((sint64)(sint32)frame * ((const TextureAnimation *)animation)->rate) >> 16;
         rec->tex->mapping.scroll_phase = phase;
+        hd_scroll_update(rec->tex, frame, ((const TextureAnimation *)animation)->rate);
         return 1;
     }
     if (kind == 0)

@@ -2,6 +2,7 @@
 
 #include "cutscene_playback.h"
 #include "game.h"
+#include "hd.h"
 
 CutsceneCamera cutscene_cameras[32] = {{0}};
 
@@ -27,6 +28,8 @@ void CutscenePlayback::RegisterCutsceneCamera(const SceneTrigger *object)
 void CutscenePlayback::StopCutscene(void)
 {
     FUNCTION_MARKER(0x80026BF4, "SLUS_005.78");
+    if (cutscene.remaining_ticks != 0 || cutscene.active != 0)
+        hd_camera_cut();
     cutscene.remaining_ticks = 0;
     cutscene.active = 0;
 }
@@ -72,6 +75,7 @@ void CutscenePlayback::StartPendingCutscene(const AnimatedObject *object)
         return;
     event = cutscene.trigger;
     section = scene_stream.active_section;
+    hd_camera_cut();
     val = event->parameters.cutscene.duration;
     cutscene.duration = val;
     cutscene.remaining_ticks = val;
@@ -124,6 +128,7 @@ uint32 CutscenePlayback::UpdateCutscene(void)
         return 0;
     }
     target = cutscene.next_camera;
+    hd_camera_cut();
     if (target == 0xFFFFFFFF)
     {
         cutscene.active = 0;

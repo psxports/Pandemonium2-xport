@@ -3,6 +3,7 @@
 
 #include "scene_loader.h"
 #include "game.h"
+#include "hd.h"
 
 SceneLoader scene_loader = {0};
 
@@ -397,6 +398,7 @@ uint32 SceneLoader::PollSceneResourceLoad(void)
             base = scene_loader.geometry_data;
             scene_loader.phase = 0;
             section = &scene_loader.dst_buffer->section;
+            hd_invalidate_geometry();
             // Retire borrowed cutscene links only when their section is recycled
             for (uint32 trigger_idx = 0; trigger_idx < section->trigger_count; ++trigger_idx)
             {
@@ -452,6 +454,7 @@ uint32 SceneLoader::PollSceneResourceLoad(void)
             free(section->paths);
             free(section->path_key_data);
             free(section->path_offset_matrices);
+            hd_invalidate_paths();
             free(section->definition_transforms);
             section->definition_transforms = 0;
             section->path_offset_matrices = 0;

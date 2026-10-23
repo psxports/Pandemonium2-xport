@@ -4,6 +4,7 @@
 
 #include "scene_stream.h"
 #include "game.h"
+#include "hd.h"
 
 SceneStream scene_stream = {0};
 
@@ -359,7 +360,49 @@ void SceneStream::ApplySceneSectionTransition(void)
     scene = stream->target_section;
     x = (sint16)stream->checkpoint;
     y = (sint16)stream->transition_ticks;
+#if defined(_DEBUG)
+    if (level_resource.level_id == 1 && scene->section_idx == 1 && getenv("P2_PERF_REFERENCE_START") != NULL)
+    {
+        x = 0;
+        y = 21;
+    }
+#endif
     CharacterController::PlaceCharacterOnPath(scene, x, y);
+#if defined(_DEBUG)
+    if (level_resource.level_id == 1 && scene->section_idx == 1 && getenv("P2_PERF_REFERENCE_START") != NULL)
+    {
+        // Temporary user-selected starting point for the ten-second Right test
+        AnimatedObject *player = character_pad.object;
+        player->pos.x = 2162269;
+        player->pos.y = 54304;
+        player->pos.z = 141410;
+        player->world_pos.x = 2162269;
+        player->world_pos.y = 68946;
+        player->world_pos.z = 141410;
+        player->flags = 0x34;
+        player->path_flags = 0x400;
+        player->yaw = player->target_yaw = 3040;
+        player->velocity.x = player->velocity.y = player->velocity.z = 0;
+        character_pad.motion.horizontal_speed = 0;
+        character_pad.motion.vertical_speed = 0;
+        camera_motion.pos.x = 2188016;
+        camera_motion.pos.y = 138071;
+        camera_motion.pos.z = 279655;
+        camera_motion.focus_pos.x = 2162269;
+        camera_motion.focus_pos.y = 68640;
+        camera_motion.focus_pos.z = 141410;
+        camera_motion.desired_pos.x = 2422324;
+        camera_motion.desired_pos.y = 49922;
+        camera_motion.desired_pos.z = 256522;
+        camera_motion.flags = 1;
+        camera_motion.smooth_ticks[0] = camera_motion.smooth_ticks[1] = camera_motion.smooth_ticks[2] = 0;
+        camera_motion.target_ticks = 0;
+        CutscenePlayback::StopCutscene();
+        CameraMotion::UpdateCameraAim();
+        hd_camera_cut();
+        fprintf(stderr, "P2_PERF_REFERENCE_START level=1 section=1 path=0 frame=21\n");
+    }
+#endif
     scene = stream->target_section;
     flags = scene->state_flags;
     x = sequence_playback.cur_handle;
@@ -423,6 +466,7 @@ void SceneStream::ResetSceneStreams(void)
     uint32 idx;
     SceneSection *section;
     FUNCTION_MARKER(0x80026AA0, "SLUS_005.78");
+    hd_invalidate_geometry();
     CutscenePlayback::StopCutscene();
     cutscene.trigger = 0;
     cutscene.path = 0;
@@ -505,6 +549,7 @@ void SceneStream::ResetSceneStreams(void)
         free(scene_stream.buffers[idx].section.paths);
         free(scene_stream.buffers[idx].section.path_key_data);
         free(scene_stream.buffers[idx].section.path_offset_matrices);
+        hd_invalidate_paths();
         free(scene_stream.buffers[idx].section.definition_transforms);
         scene_stream.buffers[idx].section.definition_transforms = 0;
         scene_stream.buffers[idx].section.path_offset_matrices = 0;

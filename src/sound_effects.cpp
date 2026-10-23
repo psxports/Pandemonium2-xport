@@ -126,12 +126,12 @@ sint32 SoundEffects::SelectVoice(uint32 requested, const SoundSample *sound, uin
         voice = min_voice;
         while (voice < 8)
         {
-            if (voices[voice].started_tick < frame_clock.render_tick)
+            if (voices[voice].started_tick < game_tick)
             {
                 if (SoundEffects::IsSoundVoicePlaying(voice) == 0)
                     goto assign;
                 prev = voices[voice].started_tick;
-                frame = frame_clock.render_tick;
+                frame = game_tick;
                 if (prev < frame && min_voice == 3 && frame - prev >= 301)
                     goto assign_with_frame;
             }
@@ -164,7 +164,7 @@ sint32 SoundEffects::SelectVoice(uint32 requested, const SoundSample *sound, uin
             goto next_candidate;
     }
 assign:
-    frame = frame_clock.render_tick;
+    frame = game_tick;
 assign_with_frame:
     voices[voice].sound = sound;
     voices[voice].priority = priority;
@@ -382,7 +382,7 @@ void SoundEffects::Flush()
                 cached = voices[requested].sound;
                 if (cached == prev)
                 {
-                    if (cached == command.sound && frame_clock.render_tick - voices[requested].started_tick < 60 && SoundEffects::IsSoundVoicePlaying(requested) != 0)
+                    if (cached == command.sound && game_tick - voices[requested].started_tick < 60 && SoundEffects::IsSoundVoicePlaying(requested) != 0)
                         skip = 1;
                     break;
                 }
