@@ -4,6 +4,7 @@
 
 #include "camera_motion.h"
 #include "game.h"
+#include "hd.h"
 #include "animated_object.h"
 #include "psx_gte.h"
 
@@ -56,6 +57,7 @@ void CameraMotion::UpdateCameraAim(void)
         result &= 0xFFF;
         camera_proj.rotation[0] = result;
     }
+    hd_camera_aim();
 }
 
 void CameraMotion::SelectScenePath(const ScenePath *path)

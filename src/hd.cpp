@@ -8,6 +8,8 @@
 #include "psx_gpu.h"
 #include "texture_descriptor.h"
 #include "camera_projection.h"
+#include "camera_motion.h"
+#include "scene_path.h"
 #include "vector3.h"
 #include "mesh_geometry_node.h"
 #include "scene_lighting.h"
@@ -15,6 +17,7 @@
 #include "animated_object.h"
 #include "animation_header.h"
 #include "animation_track.h"
+#include "gameplay_input.h"
 #include "background_resource.h"
 #include "sprite_record.h"
 #include "global.h"
@@ -147,6 +150,22 @@ struct HdPose
     bool valid;
 };
 
+struct HdAnimationPose
+{
+    const AnimatedObject *owner;
+    Vec3 source_pos;
+    Quat source_rotation;
+    VECTORF pos;
+    QUATF rotation;
+    bool pos_valid, rotation_valid, pending;
+};
+
+struct HdAnimationEntry
+{
+    const SceneNode *node;
+    HdAnimationPose pose;
+};
+
 struct HdIdentity
 {
     const SceneNode *node;
@@ -191,6 +210,17 @@ struct HdBackdrop
     const BackgroundResource *source;
     float pitch, yaw, width;
     float offset[2];
+};
+
+struct HdPreciseCamera
+{
+    Vec3 source[2];
+    VECTORF value[2];
+    bool valid[2];
+    float angle[2];
+    sint16 source_angle[2];
+    Vec3 aim_source[2];
+    bool aim_valid;
 };
 
 struct HdOgQuad
@@ -353,6 +383,8 @@ struct HdState
     uint32 graph_work_count, graph_work_capacity;
     HdIdentity *identities;
     uint32 identity_count, identity_capacity;
+    HdAnimationEntry *animations;
+    uint32 animation_count, animation_capacity;
     uint64 identity_serial, pose_epoch, collection;
     HdPoseSample *nodes;
     uint32 node_count, node_capacity;
@@ -371,6 +403,7 @@ struct HdState
     bool pool_valid[HD_POOL_SLOTS];
     uint64 camera_epoch;
     uint64 camera_sample_epoch;
+    HdPreciseCamera precise_camera;
     float ui_half_width;
     bool vram_valid;
     bool frame_active;
@@ -596,7 +629,264 @@ static const char hd_texture_fragment[] =
     " if(vZBias.x!=0.0)gl_FragDepth=(vZBias.z+vZBias.w/max(vZBias.y,vDepth+vZBias.x))*0.5+0.5;\n"
     "}\n";
 
-bool hd_camera(const Vec3 *pos, const CameraProjection *projection, float near_z, HdCamera *camera)
+static float hd_animation_key_time(float frame, float end, uint32 first, uint32 last, const uint8 *data)
+{
+    float duration = end - (first >> 20);
+    if (duration <= 0.0f)
+        return 0.0f;
+    float u = (frame - (first >> 20)) / duration;
+    uint32 left = first & 255, right = last & 255;
+    if ((left | right) == 0)
+        return u;
+    float amplitude = (((first >> 8) & 4095) + 2048) / 4096.0f;
+    const AnimationEaseCurve *incoming = left != 0 ? (const AnimationEaseCurve *)(data - left * sizeof(AnimationEaseCurve)) : NULL;
+    const AnimationEaseCurve *outgoing = right != 0 ? (const AnimationEaseCurve *)(data - right * sizeof(AnimationEaseCurve)) : NULL;
+    if (incoming != NULL && u < incoming->incoming_end / 4096.0f)
+        return amplitude * (incoming->incoming_coefficient / 4096.0f) * u * u;
+    if (outgoing != NULL && u >= outgoing->outgoing_start / 4096.0f)
+        return 1.0f - amplitude * (outgoing->outgoing_coefficient / 4096.0f) * (1.0f - u) * (1.0f - u);
+    if (incoming != NULL && outgoing == NULL && u >= 1.0f)
+        return 1.0f;
+    return amplitude * (2.0f * u - (incoming != NULL ? incoming->incoming_end / 4096.0f : 0.0f));
+}
+
+static VECTORF hd_animation_vector(const AnimationTrack *track, float frame)
+{
+    const VectorAnimationKey *keys = (const VectorAnimationKey *)track->keys;
+    if (keys == NULL || track->keys == (const uint8 *)-1 || track->key_count == 0)
+    {
+        VECTORF value = {track->constant.x / 32.0f, track->constant.y / 32.0f, track->constant.z / 32.0f};
+        return value;
+    }
+    const VectorAnimationKey *prev = keys + track->key_count - 1;
+    const VectorAnimationKey *next = keys;
+    float end = (float)(prev->time >> 20);
+    if (frame < end && track->key_count > 1)
+    {
+        next = keys + 1;
+        while (next < keys + track->key_count - 1 && frame >= (next->time >> 20))
+            ++next;
+        prev = next - 1;
+        end = (float)(next->time >> 20);
+    }
+    else if (frame == end || frame >= track->frame_limit || track->key_count == 1)
+    {
+        if (frame > end && frame >= track->frame_limit && (track->flags & 3) == 3)
+            prev = keys;
+        VECTORF value = {prev->pos.x / 32.0f, prev->pos.y / 32.0f, prev->pos.z / 32.0f};
+        return value;
+    }
+    else
+        end = (float)track->frame_limit;
+    float u = hd_animation_key_time(frame, end, prev->time, next->time, track->keys);
+    float sq = u * u, cube = sq * u;
+    float next_weight = 3.0f * sq - 2.0f * cube;
+    float prev_weight = 1.0f - next_weight;
+    float prev_tangent = cube - 2.0f * sq + u;
+    float next_tangent = cube - sq;
+    VECTORF value = {
+        (prev->pos.x / 32.0f) * prev_weight + (next->pos.x / 32.0f) * next_weight
+            + (prev->outgoing_tangent.x / 32.0f) * prev_tangent + (next->incoming_tangent.x / 32.0f) * next_tangent,
+        (prev->pos.y / 32.0f) * prev_weight + (next->pos.y / 32.0f) * next_weight
+            + (prev->outgoing_tangent.y / 32.0f) * prev_tangent + (next->incoming_tangent.y / 32.0f) * next_tangent,
+        (prev->pos.z / 32.0f) * prev_weight + (next->pos.z / 32.0f) * next_weight
+            + (prev->outgoing_tangent.z / 32.0f) * prev_tangent + (next->incoming_tangent.z / 32.0f) * next_tangent};
+    return value;
+}
+
+static QUATF hd_animation_source_quat(const sint16 *source)
+{
+    QUATF value = {-source[1] / 16384.0f, -source[2] / 16384.0f, -source[3] / 16384.0f, source[0] / 16384.0f};
+    return value;
+}
+
+static QUATF hd_animation_mix_quat(const QUATF *first, const QUATF *last, float left, float right)
+{
+    QUATF value = {first->x * left + last->x * right, first->y * left + last->y * right,
+        first->z * left + last->z * right, first->w * left + last->w * right};
+    return value;
+}
+
+static QUATF hd_animation_quat(const AnimationTrack *track, float frame)
+{
+    const QuaternionAnimationKey *keys = (const QuaternionAnimationKey *)track->keys;
+    if (keys == NULL || track->keys == (const uint8 *)-1 || track->key_count == 0)
+        return hd_animation_source_quat(track->constant_quat.comp);
+    const QuaternionAnimationKey *prev = keys + track->key_count - 1;
+    const QuaternionAnimationKey *next = keys;
+    float end = (float)(prev->time >> 20);
+    if (frame < end && track->key_count > 1)
+    {
+        next = keys + 1;
+        while (next < keys + track->key_count - 1 && frame >= (next->time >> 20))
+            ++next;
+        prev = next - 1;
+        end = (float)(next->time >> 20);
+    }
+    else if (frame == end || frame >= track->frame_limit || track->key_count == 1)
+    {
+        if (frame > end && frame >= track->frame_limit && (track->flags & 3) == 3)
+            prev = keys;
+        return hd_animation_source_quat(prev->rotation.comp);
+    }
+    else
+        end = (float)track->frame_limit;
+    float u = hd_animation_key_time(frame, end, prev->time, next->time, track->keys);
+    QUATF first = hd_animation_source_quat(prev->rotation.comp);
+    QUATF last = hd_animation_source_quat(next->rotation.comp);
+    if (next->turns == 0)
+        return hd_animation_mix_quat(&first, &last, 1.0f - u, u);
+    float angle = next->angle * RAD12;
+    sint32 extra = (sint32)((uint32)(next->turns - 1) << 27) >> 16;
+    float part = (next->angle + extra) * RAD12 * u;
+    float divisor = sinf(angle);
+    if (fabsf(divisor) < 0.000001f)
+        return hd_animation_mix_quat(&first, &last, 1.0f - u, u);
+    QUATF value = hd_animation_mix_quat(&first, &last, sinf(angle - part) / divisor, sinf(part) / divisor);
+    float norm = value.x * value.x + value.y * value.y + value.z * value.z + value.w * value.w;
+    if (1.0f / divisor > 20.0f && norm < 16368.0f / 16384.0f)
+        NormalizeQuatf(&value, &value);
+    return value;
+}
+
+static QUATF hd_animation_transition(const QUATF *current, const QUATF *target, float frame)
+{
+    // Preserve the source transition direction and its three-frame schedule
+    float weight = 1.0f - (frame + 1.0f) / 3.0f;
+    float dot = current->x * target->x + current->y * target->y + current->z * target->z + current->w * target->w;
+    float left = 1.0f - weight, right = weight;
+    if (fabsf(dot) < 16368.0f / 16384.0f)
+    {
+        float angle = acosf(fabsf(dot));
+        left = sinf((1.0f - weight) * angle) / sinf(angle);
+        right = sinf(weight * angle) / sinf(angle);
+    }
+    if (dot < 0.0f)
+        right = -right;
+    return hd_animation_mix_quat(current, target, left, right);
+}
+
+static VECTORF hd_camera_transformed(const AnimationTrack *track, const MATRIX *matrix, float frame)
+{
+    VECTORF value = hd_animation_vector(track, frame);
+    if (matrix != NULL)
+    {
+        VECTORF transformed = {
+            (matrix->m[0][0] * value.vx + matrix->m[0][1] * value.vy + matrix->m[0][2] * value.vz) / 4096.0f + matrix->t[0] / 32.0f,
+            (matrix->m[1][0] * value.vx + matrix->m[1][1] * value.vy + matrix->m[1][2] * value.vz) / 4096.0f + matrix->t[1] / 32.0f,
+            (matrix->m[2][0] * value.vx + matrix->m[2][1] * value.vy + matrix->m[2][2] * value.vz) / 4096.0f + matrix->t[2] / 32.0f};
+        value = transformed;
+    }
+    return value;
+}
+
+void hd_camera_sample(const AnimationTrack *track, const MATRIX *matrix, float frame, const Vec3 *dst)
+{
+    uint32 slot;
+    if (dst == &camera_motion.pos)
+        slot = 0;
+    else if (dst == &camera_motion.focus_pos)
+        slot = 1;
+    else
+        return;
+    VECTORF value = hd_camera_transformed(track, matrix, frame);
+    hd_state.precise_camera.source[slot] = *dst;
+    hd_state.precise_camera.value[slot] = value;
+    hd_state.precise_camera.valid[slot] = true;
+    hd_state.precise_camera.aim_valid = false;
+}
+
+void hd_camera_path(const ScenePath *path, float frame, uint32 dir)
+{
+    float pos_frame = (path->node.state_flags & (dir | 8)) == 0 ? path->definition->pos_track.frame_count - frame - 1.0f : frame;
+    float focus_frame = dir == 0 ? path->definition->pos_track.frame_count - frame - 1.0f : frame;
+    hd_camera_sample(&path->offset_track, path->offset_matrix, pos_frame, &camera_motion.pos);
+    hd_camera_sample(&path->definition->pos_track, path->definition->transform != NULL ? &path->definition->transform->matrix : NULL,
+        focus_frame, &camera_motion.focus_pos);
+}
+
+static VECTORF hd_camera_point(uint32 slot, const Vec3 *source)
+{
+    if (hd_state.precise_camera.valid[slot] && memcmp(source, hd_state.precise_camera.source + slot, sizeof(*source)) == 0)
+        return hd_state.precise_camera.value[slot];
+    VECTORF value = {source->x / 32.0f, source->y / 32.0f, source->z / 32.0f};
+    return value;
+}
+
+static VECTORF hd_camera_path_point(const ScenePath *path, float frame, uint32 dir, bool offset)
+{
+    if (offset)
+    {
+        if ((path->node.state_flags & (dir | 8)) == 0)
+            frame = path->definition->pos_track.frame_count - frame - 1.0f;
+        return hd_camera_transformed(&path->offset_track, path->offset_matrix, frame);
+    }
+    if (dir == 0)
+        frame = path->definition->pos_track.frame_count - frame - 1.0f;
+    return hd_camera_transformed(&path->definition->pos_track,
+        path->definition->transform != NULL ? &path->definition->transform->matrix : NULL, frame);
+}
+
+void hd_camera_project(const ScenePath *path, sint32 frame, uint32 dir, sint32 gap, const Vec3 *dst)
+{
+    if (dst != &camera_motion.pos)
+        return;
+    float phase = (float)frame;
+    sint32 count = path->definition->pos_track.frame_count;
+    if (frame > 0 && frame < count)
+    {
+        VECTORF prev = hd_camera_path_point(path, (float)(frame - 1), dir, false);
+        VECTORF next = hd_camera_path_point(path, (float)frame, dir, false);
+        VECTORF focus = hd_camera_point(1, &camera_motion.focus_pos);
+        float x = next.vx - prev.vx, y = next.vy - prev.vy, z = next.vz - prev.vz;
+        float sq = x * x + y * y + z * z;
+        if (sq > 0.0f)
+        {
+            float fraction = ((focus.vx - prev.vx) * x + (focus.vy - prev.vy) * y + (focus.vz - prev.vz) * z) / sq;
+            phase = frame - 1.0f + fminf(1.0f, fmaxf(0.0f, fraction));
+        }
+    }
+    else
+        phase = frame <= 0 ? 0.0f : (float)(count - 1);
+    VECTORF value = hd_camera_path_point(path, phase, dir, true);
+    if ((path->node.state_flags & 1) != 0 && gap > 0)
+        value.vy += fminf(gap * (1.25f / 32.0f), gap / 32.0f + 1920.0f);
+    hd_state.precise_camera.source[0] = *dst;
+    hd_state.precise_camera.value[0] = value;
+    hd_state.precise_camera.valid[0] = true;
+    hd_state.precise_camera.aim_valid = false;
+}
+
+void hd_camera_aim(void)
+{
+    VECTORF position = hd_camera_point(0, &camera_motion.pos);
+    VECTORF focus = hd_camera_point(1, &camera_motion.focus_pos);
+    float x = focus.vx - position.vx, y = focus.vy - position.vy, z = focus.vz - position.vz;
+    float horizontal = sqrtf(x * x + z * z);
+    if (horizontal == 0.0f && y == 0.0f)
+    {
+        hd_state.precise_camera.aim_valid = false;
+        return;
+    }
+    hd_state.precise_camera.angle[0] = -atan2f(y, horizontal) / RAD12;
+    hd_state.precise_camera.angle[1] = horizontal != 0.0f ? atan2f(x, z) / RAD12 : (float)camera_proj.rotation[1];
+    hd_state.precise_camera.source_angle[0] = camera_proj.rotation[0];
+    hd_state.precise_camera.source_angle[1] = camera_proj.rotation[1];
+    hd_state.precise_camera.aim_source[0] = camera_motion.pos;
+    hd_state.precise_camera.aim_source[1] = camera_motion.focus_pos;
+    hd_state.precise_camera.aim_valid = true;
+}
+
+static bool hd_camera_aim_valid(void)
+{
+    return hd_state.precise_camera.aim_valid
+        && camera_proj.rotation[0] == hd_state.precise_camera.source_angle[0]
+        && camera_proj.rotation[1] == hd_state.precise_camera.source_angle[1]
+        && memcmp(&camera_motion.pos, hd_state.precise_camera.aim_source, sizeof(Vec3)) == 0
+        && memcmp(&camera_motion.focus_pos, hd_state.precise_camera.aim_source + 1, sizeof(Vec3)) == 0;
+}
+
+static bool hd_camera_float(const VECTORF *position, const float *rotation, const CameraProjection *projection, float near_z, HdCamera *camera)
 {
     float focal = projection->scale / 4096.0f;
     float far_z = projection->far_distance / 32.0f;
@@ -605,14 +895,13 @@ bool hd_camera(const Vec3 *pos, const CameraProjection *projection, float near_z
     MATRIXF x_basis, y_basis;
     IdentityMatrixf(&x_basis);
     IdentityMatrixf(&y_basis);
-    RotMatrixXf(-projection->rotation[0] * RAD12, &x_basis);
-    RotMatrixYf(-projection->rotation[1] * RAD12, &y_basis);
+    RotMatrixXf(-rotation[0] * RAD12, &x_basis);
+    RotMatrixYf(-rotation[1] * RAD12, &y_basis);
     MulMatrix0f(&x_basis, &y_basis, &camera->view);
-    RotMatrixZf((2048 - projection->rotation[2]) * RAD12, &camera->view);
+    RotMatrixZf((2048.0f - rotation[2]) * RAD12, &camera->view);
     // World positions use 32 units per mesh coordinate; rotation coefficients do not scale translation
-    VECTORF position = {pos->x / 32.0f, pos->y / 32.0f, pos->z / 32.0f};
     VECTORF rotated;
-    ApplyMatrixf(&camera->view, &position, &rotated);
+    ApplyMatrixf(&camera->view, position, &rotated);
     camera->view.t[0] = -rotated.vx;
     camera->view.t[1] = -rotated.vy;
     camera->view.t[2] = -rotated.vz;
@@ -620,6 +909,13 @@ bool hd_camera(const Vec3 *pos, const CameraProjection *projection, float near_z
     camera->near_z = near_z;
     camera->far_z = far_z;
     return true;
+}
+
+bool hd_camera(const Vec3 *pos, const CameraProjection *projection, float near_z, HdCamera *camera)
+{
+    VECTORF position = {pos->x / 32.0f, pos->y / 32.0f, pos->z / 32.0f};
+    float rotation[3] = {(float)projection->rotation[0], (float)projection->rotation[1], (float)projection->rotation[2]};
+    return hd_camera_float(&position, rotation, projection, near_z, camera);
 }
 
 bool hd_visible(const HdCamera *camera, const VECTORF *pos, float radius, float aspect)
@@ -979,6 +1275,213 @@ static uint64 hd_identity(const SceneNode *node)
     return entry->id;
 }
 
+static uint32 hd_animation_slot(const SceneNode *node, HdAnimationEntry *entries, uint32 capacity)
+{
+    size_t hash = (size_t)node >> 4;
+    hash ^= hash >> 11;
+    uint32 slot = hash & (capacity - 1);
+    while (entries[slot].node != NULL && entries[slot].node != node)
+        slot = (slot + 1) & (capacity - 1);
+    return slot;
+}
+
+static HdAnimationPose *hd_animation_entry(const SceneNode *node, bool create)
+{
+    if (node == NULL)
+        return NULL;
+    if (create && hd_state.animation_count * 2 >= hd_state.animation_capacity)
+    {
+        uint32 capacity = hd_state.animation_capacity != 0 ? hd_state.animation_capacity * 2 : 128;
+        if (capacity <= hd_state.animation_capacity || capacity > (size_t)-1 / sizeof(HdAnimationEntry))
+            return NULL;
+        HdAnimationEntry *entries = (HdAnimationEntry *)calloc(capacity, sizeof(HdAnimationEntry));
+        if (entries == NULL)
+            return NULL;
+        for (uint32 idx = 0; idx < hd_state.animation_capacity; ++idx)
+            if (hd_state.animations[idx].node != NULL)
+                entries[hd_animation_slot(hd_state.animations[idx].node, entries, capacity)] = hd_state.animations[idx];
+        free(hd_state.animations);
+        hd_state.animations = entries;
+        hd_state.animation_capacity = capacity;
+    }
+    if (hd_state.animation_capacity == 0)
+        return NULL;
+    HdAnimationEntry *entry = hd_state.animations + hd_animation_slot(node, hd_state.animations, hd_state.animation_capacity);
+    if (entry->node == NULL && create)
+    {
+        memset(entry, 0, sizeof(*entry));
+        entry->node = node;
+        ++hd_state.animation_count;
+    }
+    return entry->node != NULL ? &entry->pose : NULL;
+}
+
+static void hd_forget_animation(const SceneNode *node)
+{
+    if (hd_state.animation_count == 0)
+        return;
+    uint32 slot = hd_animation_slot(node, hd_state.animations, hd_state.animation_capacity);
+    if (hd_state.animations[slot].node == NULL)
+        return;
+    hd_state.animations[slot].node = NULL;
+    --hd_state.animation_count;
+    uint32 next = (slot + 1) & (hd_state.animation_capacity - 1);
+    while (hd_state.animations[next].node != NULL)
+    {
+        HdAnimationEntry entry = hd_state.animations[next];
+        hd_state.animations[next].node = NULL;
+        hd_state.animations[hd_animation_slot(entry.node, hd_state.animations, hd_state.animation_capacity)] = entry;
+        next = (next + 1) & (hd_state.animation_capacity - 1);
+    }
+}
+
+static const Vec3 *hd_animation_fields(const SceneNode *node, const sint16 **rotation, const sint8 **binding)
+{
+    *rotation = NULL;
+    *binding = NULL;
+    if (node->kind == 0)
+    {
+        const AnimatedObject *actor = (const AnimatedObject *)node;
+        *rotation = actor->orientation;
+        *binding = actor->animation_binding.tracks;
+        return &actor->pos;
+    }
+    if (node->kind == 5)
+    {
+        const MeshPartNode *part = (const MeshPartNode *)node;
+        *rotation = part->rotation;
+        *binding = part->animation_binding.tracks;
+        return &part->pos;
+    }
+    if (node->kind == 2)
+    {
+        const SceneTrigger *trigger = (const SceneTrigger *)node;
+        *rotation = trigger->rotation;
+        *binding = trigger->animation_binding.tracks;
+        return &trigger->pos;
+    }
+    if (node->kind == 6)
+    {
+        *binding = (const sint8 *)&node->state_flags;
+        return &((const SphereNode *)node)->pos;
+    }
+    if (node->kind == 7)
+    {
+        const SpriteRecord *sprite = (const SpriteRecord *)node;
+        *binding = sprite->animation_binding.tracks;
+        return &sprite->pos;
+    }
+    return NULL;
+}
+
+static bool hd_animation_has_rotation(const SceneNode *node, const sint16 *source)
+{
+    const HdAnimationPose *pose = hd_animation_entry(node, false);
+    return pose != NULL && pose->rotation_valid && !pose->pending
+        && memcmp(source, &pose->source_rotation, sizeof(Quat)) == 0;
+}
+
+static QUATF hd_animation_rotation(const SceneNode *node, const sint16 *source)
+{
+    if (hd_animation_has_rotation(node, source))
+        return hd_animation_entry(node, false)->rotation;
+    return hd_animation_source_quat(source);
+}
+
+static VECTORF hd_animation_position(const SceneNode *node, const Vec3 *source)
+{
+    const HdAnimationPose *pose = hd_animation_entry(node, false);
+    if (pose != NULL && pose->pos_valid && !pose->pending && memcmp(source, &pose->source_pos, sizeof(*source)) == 0)
+        return pose->pos;
+    VECTORF value = {source->x / 32.0f, source->y / 32.0f, source->z / 32.0f};
+    return value;
+}
+
+void hd_animation_begin(const AnimatedObject *owner, const SceneNode *node, bool tracks)
+{
+    if (owner == NULL || owner->animation == NULL || (!tracks && node->kind == 0))
+        return;
+    const sint16 *rotation;
+    const sint8 *binding;
+    const Vec3 *pos = hd_animation_fields(node, &rotation, &binding);
+    if (pos == NULL || (tracks && (node->kind == 6 || (node->kind == 0 && ((const AnimatedObject *)node)->animation_binding.word == 0xFFFFFFFF))))
+        return;
+    HdAnimationPose *pose = hd_animation_entry(node, true);
+    if (pose == NULL)
+        return;
+    bool same_owner = pose->owner == owner;
+    pose->pos_valid = same_owner && pose->pos_valid && memcmp(pos, &pose->source_pos, sizeof(*pos)) == 0;
+    pose->rotation_valid = same_owner && pose->rotation_valid && rotation != NULL
+        && memcmp(rotation, &pose->source_rotation, sizeof(Quat)) == 0;
+    if (!pose->pos_valid)
+    {
+        VECTORF value = {pos->x / 32.0f, pos->y / 32.0f, pos->z / 32.0f};
+        pose->pos = value;
+    }
+    if (rotation != NULL && !pose->rotation_valid)
+        pose->rotation = hd_animation_source_quat(rotation);
+    pose->owner = owner;
+    pose->pending = true;
+    const AnimationHeader *clip = owner->animation;
+    sint32 idx = binding[0];
+    if (idx >= 0 && idx < clip->counts[0])
+    {
+        const AnimationTrack *track = &clip->tracks[0].vectors[idx].track;
+        if (track->keys != NULL && (!tracks || (track->flags & 8) != 0))
+        {
+            if (!tracks && (owner->flags & 0x10000) != 0)
+            {
+                const Vec3 *target = track->keys == (const uint8 *)-1 ? &track->constant : &((const VectorAnimationKey *)track->keys)->pos;
+                float weight = (owner->frame + 1.0f) / 3.0f;
+                pose->pos.vx += (target->x / 32.0f - pose->pos.vx) * weight;
+                pose->pos.vy += (target->y / 32.0f - pose->pos.vy) * weight;
+                pose->pos.vz += (target->z / 32.0f - pose->pos.vz) * weight;
+            }
+            else
+                pose->pos = hd_animation_vector(track, tracks ? (float)track->frame : (float)owner->frame);
+            pose->pos_valid = true;
+        }
+    }
+    if (rotation == NULL)
+        return;
+    idx = binding[1];
+    if (idx < 0 || idx >= clip->counts[1])
+        return;
+    const AnimationTrack *track = clip->tracks[1].recs + idx;
+    if (track->keys == NULL)
+        return;
+    if (!tracks && gameplay_input.rotation_track_shift != 0)
+    {
+        idx = (idx + gameplay_input.rotation_track_shift) % clip->counts[1];
+        track = clip->tracks[1].recs + idx;
+    }
+    if (track->keys == NULL || (tracks && (track->flags & 8) == 0))
+        return;
+    if (!tracks && (owner->flags & 0x10000) != 0)
+    {
+        const sint16 *target = track->keys == (const uint8 *)-1 ? track->constant_quat.comp : ((const QuaternionAnimationKey *)track->keys)->rotation.comp;
+        QUATF value = hd_animation_source_quat(target);
+        pose->rotation = hd_animation_transition(&pose->rotation, &value, (float)owner->frame);
+    }
+    else
+        pose->rotation = hd_animation_quat(track, tracks ? (float)track->frame : (float)owner->frame);
+    pose->rotation_valid = true;
+}
+
+void hd_animation_end(const AnimatedObject *owner, const SceneNode *node)
+{
+    HdAnimationPose *pose = hd_animation_entry(node, false);
+    if (pose == NULL || pose->owner != owner || !pose->pending)
+        return;
+    const sint16 *rotation;
+    const sint8 *binding;
+    const Vec3 *pos = hd_animation_fields(node, &rotation, &binding);
+    pose->source_pos = *pos;
+    if (rotation != NULL)
+        memcpy(&pose->source_rotation, rotation, sizeof(Quat));
+    pose->pending = false;
+}
+
 static uint32 hd_graph_work_slot(const SceneNode *node, HdGraphWork *entries, uint32 capacity)
 {
     size_t hash = (size_t)node >> 4;
@@ -1053,6 +1556,7 @@ void hd_forget_pose(const SceneNode *node, bool children)
 {
     if (node == NULL)
         return;
+    hd_forget_animation(node);
     hd_forget_graph_work(node);
     uint32 pool_slot = hd_pool_slot(node);
     if (pool_slot != HD_NO_POSE)
@@ -1164,7 +1668,12 @@ static void hd_clear_samples(void)
 void hd_sprite_pool(const SpriteRecord *records)
 {
     if (records != hd_state.sprite_pool)
+    {
+        if (hd_state.sprite_pool != NULL)
+            for (uint32 idx = 0; idx < HD_POOL_SLOTS; ++idx)
+                hd_forget_animation(&hd_state.sprite_pool[idx].node);
         hd_clear_samples();
+    }
     hd_state.sprite_pool = records;
     memset(hd_state.pool_valid, 0, sizeof(hd_state.pool_valid));
     memset(hd_state.samples[0].pool_valid, 0, sizeof(hd_state.samples[0].pool_valid));
@@ -1174,6 +1683,7 @@ void hd_sprite_pool(const SpriteRecord *records)
 void hd_camera_cut(void)
 {
     ++hd_state.camera_epoch;
+    memset(&hd_state.precise_camera, 0, sizeof(hd_state.precise_camera));
 }
 
 static void *hd_grow_sample(void *data, uint32 *capacity, uint32 count, size_t stride)
@@ -1819,6 +2329,10 @@ void hd_reset(void)
 
 void hd_level_reset(void)
 {
+    memset(&hd_state.precise_camera, 0, sizeof(hd_state.precise_camera));
+    if (hd_state.animation_capacity != 0)
+        memset(hd_state.animations, 0, hd_state.animation_capacity * sizeof(HdAnimationEntry));
+    hd_state.animation_count = 0;
     hd_state.pause_scene = NULL;
     hd_state.pause_redraw = NULL;
     hd_state.pause_valid = false;
@@ -1902,6 +2416,7 @@ void hd_free(void)
     free(hd_state.paths);
     free(hd_state.nodes);
     free(hd_state.identities);
+    free(hd_state.animations);
     free(hd_state.graph_work);
     free(hd_state.mixed_draws);
     free(hd_state.mixed_sprites);
@@ -2211,8 +2726,13 @@ bool hd_background(const BackgroundResource *background, const uint16 *map, sint
         return false;
     HdBackdrop *backdrop = &hd_state.backdrop;
     backdrop->source = background;
-    backdrop->pitch = pitch & 4095;
-    backdrop->yaw = yaw & 4095;
+    backdrop->pitch = (float)(pitch & 4095);
+    backdrop->yaw = (float)(yaw & 4095);
+    if (hd_camera_aim_valid() && pitch == camera_proj.rotation[0] && yaw == camera_proj.rotation[1])
+    {
+        backdrop->pitch = fmodf(hd_state.precise_camera.angle[0] + 4096.0f, 4096.0f);
+        backdrop->yaw = fmodf(hd_state.precise_camera.angle[1] + 4096.0f, 4096.0f);
+    }
     backdrop->width = background->width;
     float margin_x = 16.0f, margin_y = 16.0f;
     const HdSnapshot *previous = hd_state.samples + hd_state.latest_sample;
@@ -2221,7 +2741,9 @@ bool hd_background(const BackgroundResource *background, const uint16 *map, sint
         margin_x += fabsf(hd_angle_delta(previous->backdrop.yaw, backdrop->yaw)) * background->width / 256.0f;
         margin_y += fabsf(hd_angle_delta(previous->backdrop.pitch, backdrop->pitch)) * 640.0f / 2048.0f;
     }
-    float angle = (float)((1024 + pitch + pitch_offset) & 4095);
+    float angle = fmodf(1024.0f + backdrop->pitch + pitch_offset, 4096.0f);
+    if (angle < 0.0f)
+        angle += 4096.0f;
     if (angle > 2048.0f)
         angle -= 4096.0f;
     float vertical = 640.0f * angle / 2048.0f;
@@ -2231,7 +2753,7 @@ bool hd_background(const BackgroundResource *background, const uint16 *map, sint
         return false;
     if (bottom < 240.0f + margin_y && !hd_rect(0, bottom, 320, 240.0f + margin_y - bottom, bottom_color, VID_BLEND_NONE, HD_ANCHOR_FILL, HD_BACKGROUND))
         return false;
-    float horizontal = ((-yaw) & 4095) * background->width / 256.0f;
+    float horizontal = fmodf(4096.0f - backdrop->yaw, 4096.0f) * background->width / 256.0f;
     sint32 column = (sint32)floorf(horizontal / 16.0f) + scroll;
     float x = -fmodf(horizontal, 16.0f);
     sint32 extra = (sint32)floorf((160.0f - hd_state.ui_half_width - margin_x - x) / 16.0f);
@@ -4507,7 +5029,19 @@ void hd_frame_camera(const Vec3 *pos, const CameraProjection *projection, const 
 {
     if (!hd_frame.collecting || hd_frame.failed)
         return;
-    hd_frame.camera_valid = hd_camera(pos, projection, 1.0f, &hd_frame.camera);
+    if (pos == &camera_motion.pos && projection == &camera_proj)
+    {
+        VECTORF position = hd_camera_point(0, pos);
+        float rotation[3] = {(float)projection->rotation[0], (float)projection->rotation[1], (float)projection->rotation[2]};
+        if (hd_camera_aim_valid())
+        {
+            rotation[0] = hd_state.precise_camera.angle[0];
+            rotation[1] = hd_state.precise_camera.angle[1];
+        }
+        hd_frame.camera_valid = hd_camera_float(&position, rotation, projection, 1.0f, &hd_frame.camera);
+    }
+    else
+        hd_frame.camera_valid = hd_camera(pos, projection, 1.0f, &hd_frame.camera);
     hd_frame.aspect = hd_state.ui_half_width / 120.0f;
     if (hd_frame.camera_valid)
         hd_source_clip(scene, &hd_frame.camera);
@@ -4527,13 +5061,9 @@ static void hd_source_model(const MATRIX *source, MATRIXF *model)
     }
 }
 
-static void hd_quat_pose(const sint16 *rotation, MATRIXF *model)
+static void hd_quat_pose(const SceneNode *node, const sint16 *rotation, MATRIXF *model)
 {
-    QUATF quat;
-    quat.w = rotation[0] / 16384.0f;
-    quat.x = -rotation[1] / 16384.0f;
-    quat.y = -rotation[2] / 16384.0f;
-    quat.z = -rotation[3] / 16384.0f;
+    QUATF quat = hd_animation_rotation(node, rotation);
     float norm = quat.w * quat.w + quat.x * quat.x + quat.y * quat.y + quat.z * quat.z;
     QuatMatrixf(&quat, model);
     // Preserve the source polynomial for nonunit Q14 samples
@@ -4558,7 +5088,7 @@ static void hd_path_model(const PathTransform *path, MATRIXF *model)
 
 static VECTORF hd_actor_position(const AnimatedObject *actor)
 {
-    VECTORF pos = {actor->pos.x / 32.0f, actor->pos.y / 32.0f, actor->pos.z / 32.0f};
+    VECTORF pos = hd_animation_position(&actor->node, &actor->pos);
     if ((actor->flags & 0x2000) == 0 && actor->path_definition != NULL && actor->path_definition->transform != NULL)
     {
         MATRIXF path;
@@ -4577,7 +5107,7 @@ void hd_root_pose(const AnimatedObject *actor, MATRIXF *model)
         RotMatrixYf((actor->orientation[2] & 4095) * RAD12, model);
     }
     else
-        hd_quat_pose(actor->orientation, model);
+        hd_quat_pose(&actor->node, actor->orientation, model);
     VECTORF pos = hd_actor_position(actor);
     TransMatrixf(model, &pos);
     bool special = actor->behavior == 17 && actor->behavior_suspended == 2;
@@ -4607,17 +5137,15 @@ void hd_node_pose(const SceneNode *node, const AnimatedObject *owner, const MATR
             RotMatrixYf((((packed >> 5) & 31) * rate & 4095) * RAD12, &y_basis);
             MulMatrix0f(&local, &y_basis, model);
             RotMatrixZf((((packed >> 10) & 31) * rate & 4095) * RAD12, model);
-            model->t[0] = part->pos.x / 32.0f;
-            model->t[1] = part->pos.y / 32.0f;
-            model->t[2] = part->pos.z / 32.0f;
+            VECTORF pos = hd_animation_position(node, &part->pos);
+            TransMatrixf(model, &pos);
         }
         else
         {
-            if (part->rotation[0] != 0x4000)
-                hd_quat_pose(part->rotation, &local);
-            local.t[0] = part->pos.x / 32.0f;
-            local.t[1] = part->pos.y / 32.0f;
-            local.t[2] = part->pos.z / 32.0f;
+            if (part->rotation[0] != 0x4000 || hd_animation_has_rotation(node, part->rotation))
+                hd_quat_pose(node, part->rotation, &local);
+            VECTORF pos = hd_animation_position(node, &part->pos);
+            TransMatrixf(&local, &pos);
             CompMatrixf(parent, &local, model);
         }
         return;
@@ -4638,7 +5166,7 @@ void hd_node_pose(const SceneNode *node, const AnimatedObject *owner, const MATR
         pos = &((const SphereNode *)node)->pos;
     if (pos != NULL)
     {
-        VECTORF offset = {pos->x / 32.0f, pos->y / 32.0f, pos->z / 32.0f};
+        VECTORF offset = hd_animation_position(node, pos);
         RotTransf(parent, &offset, &offset);
         TransMatrixf(model, &offset);
     }
@@ -4687,7 +5215,7 @@ static void hd_bind_pose(HdPose *pose, const MATRIXF *local, uint32 space, const
     sample->world = pose->model;
     if (rotation != NULL)
     {
-        QUATF source = {-rotation[1] / 16384.0f, -rotation[2] / 16384.0f, -rotation[3] / 16384.0f, rotation[0] / 16384.0f};
+        QUATF source = hd_animation_rotation(pose->node, rotation);
         NormalizeQuatf(&source, &sample->rotation);
     }
     else
@@ -4801,7 +5329,7 @@ void hd_frame_node(const SceneNode *node, const AnimatedObject *owner)
         {
             space = HD_POSE_PARENT_POS | HD_POSE_PARENT_ROT;
             const MeshPartNode *part = (const MeshPartNode *)node;
-            if (part->rotation[0] != 0x4000)
+            if (part->rotation[0] != 0x4000 || hd_animation_has_rotation(node, part->rotation))
                 rotation = part->rotation;
         }
     }
@@ -4821,7 +5349,7 @@ void hd_graph_pose(const SceneNode *node, const MATRIXF *parent, bool inherit_sp
         const AnimatedObject *actor = (const AnimatedObject *)node;
         if (actor->behavior == 22)
         {
-            hd_quat_pose(actor->orientation, model);
+            hd_quat_pose(node, actor->orientation, model);
             VECTORF world = hd_actor_position(actor);
             TransMatrixf(model, &world);
             return;
@@ -4869,13 +5397,13 @@ void hd_graph_pose(const SceneNode *node, const MATRIXF *parent, bool inherit_sp
     {
         MATRIXF local;
         IdentityMatrixf(&local);
-        if (rotation[0] != 0x4000)
-            hd_quat_pose(rotation, &local);
+        if (rotation[0] != 0x4000 || hd_animation_has_rotation(node, rotation))
+            hd_quat_pose(node, rotation, &local);
         MulMatrix0f(parent, &local, model);
     }
     if (pos != NULL)
     {
-        VECTORF offset = {pos->x / 32.0f, pos->y / 32.0f, pos->z / 32.0f};
+        VECTORF offset = hd_animation_position(node, pos);
         RotTransf(parent, &offset, &offset);
         TransMatrixf(model, &offset);
     }
@@ -4927,21 +5455,21 @@ void hd_frame_graph_node(const SceneNode *node, const AnimatedObject *parent, ui
     {
         const AnimatedObject *actor = (const AnimatedObject *)node;
         space = actor->behavior == 22 ? 0 : HD_POSE_PARENT_POS | HD_POSE_PARENT_ROT;
-        if (actor->behavior == 22 || actor->orientation[0] != 0x4000)
+        if (actor->behavior == 22 || actor->orientation[0] != 0x4000 || hd_animation_has_rotation(node, actor->orientation))
             rotation = actor->orientation;
     }
     else if (node->kind == 5)
     {
         space = HD_POSE_PARENT_POS | HD_POSE_PARENT_ROT;
         const MeshPartNode *part = (const MeshPartNode *)node;
-        if (part->rotation[0] != 0x4000)
+        if (part->rotation[0] != 0x4000 || hd_animation_has_rotation(node, part->rotation))
             rotation = part->rotation;
     }
     else if (node->kind == 2)
     {
         space = HD_POSE_PARENT_POS | (heading == NULL ? HD_POSE_PARENT_ROT : 0);
         const SceneTrigger *trigger = (const SceneTrigger *)node;
-        if (heading == NULL && trigger->rotation[0] != 0x4000)
+        if (heading == NULL && (trigger->rotation[0] != 0x4000 || hd_animation_has_rotation(node, trigger->rotation)))
             rotation = trigger->rotation;
     }
     else if (node->kind == 7)

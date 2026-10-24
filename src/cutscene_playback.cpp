@@ -116,6 +116,8 @@ uint32 CutscenePlayback::UpdateCutscene(void)
         frame = cutscene.frame;
         path->SamplePos(frame, camera_motion.focus_pos, 16);
         path = cutscene.path;
+        if (cutscene.duration != 0)
+            hd_camera_path(path, path->offset_track.frame_count * ((float)(cutscene.duration - remaining - 1) / cutscene.duration), 16);
         duration = cutscene.duration;
         remaining = cutscene.remaining_ticks;
         val = path->offset_track.frame_count;

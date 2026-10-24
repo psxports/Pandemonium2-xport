@@ -2,6 +2,7 @@
 
 #include "scene_path.h"
 #include "game.h"
+#include "hd.h"
 
 void ScenePath::SamplePos(sint32 frame, Vec3 &dst, uint32 dir) const
 {
@@ -41,6 +42,7 @@ void ScenePath::SamplePos(sint32 frame, Vec3 &dst, uint32 dir) const
     {
         AnimationTrack::SampleVectorTrack(frame, &definition_val->pos_track, dst);
     }
+    hd_camera_sample(&definition_val->pos_track, matrix, (float)frame, &dst);
 }
 
 void ScenePath::SampleOffset(sint32 frame, Vec3 &dst, uint32 dir) const
@@ -79,6 +81,7 @@ void ScenePath::SampleOffset(sint32 frame, Vec3 &dst, uint32 dir) const
     }
     else
         AnimationTrack::SampleVectorTrack(frame, &offset_track, dst);
+    hd_camera_sample(&offset_track, matrix, (float)frame, &dst);
 }
 
 const ScenePath *ScenePath::Step(uint32 *frame_word, uint32 dir) const
@@ -324,6 +327,7 @@ uint32 ScenePath::ProjectOffset(sint32 frame, Vec3 &dst, uint32 dir) const
             dst.y = result;
         }
     }
+    hd_camera_project(this, sel, dir, gap, &dst);
     return result;
 }
 

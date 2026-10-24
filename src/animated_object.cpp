@@ -847,6 +847,7 @@ void AnimatedObject::SampleNodeAnimation(SceneNode *node)
     sint32 sample_frame;
     sint32 node_key;
     FUNCTION_MARKER(0x80019CF4, "SLUS_005.78");
+    hd_animation_begin(this, node);
     clip = animation;
     if (clip == 0)
         goto finish;
@@ -1044,6 +1045,7 @@ void AnimatedObject::SampleNodeAnimation(SceneNode *node)
         RebuildMorphNormals(&part->span);
     }
 finish:
+    hd_animation_end(this, node);
     return;
 }
 
@@ -1123,6 +1125,7 @@ void AnimatedObject::ApplyNodeAnimation(AnimatedObject *parent, SceneNode *node)
         animated_owner->flags |= 0x20;
         goto done;
     }
+    hd_animation_begin(owner, node, true);
     switch (category)
     {
         case 0:
@@ -1232,6 +1235,7 @@ void AnimatedObject::ApplyNodeAnimation(AnimatedObject *parent, SceneNode *node)
         }
     }
 done:
+    hd_animation_end(owner, node);
     return;
 }
 

@@ -21,7 +21,13 @@ struct BillboardNode;
 struct AnimationTrack;
 struct SceneNode;
 struct PathTransform;
+struct ScenePath;
 typedef void (*HdSceneRedraw)(SceneSection *scene, bool advance);
+
+void hd_camera_sample(const AnimationTrack *track, const MATRIX *matrix, float frame, const Vec3 *dst);
+void hd_camera_path(const ScenePath *path, float frame, uint32 dir);
+void hd_camera_aim(void);
+void hd_camera_project(const ScenePath *path, sint32 frame, uint32 dir, sint32 gap, const Vec3 *dst);
 
 struct HdCamera
 {
@@ -135,6 +141,8 @@ bool hd_replay(void);
 void hd_wait(uint64 deadline);
 void hd_frame_camera(const Vec3 *pos, const CameraProjection *projection, const SceneSection *scene = NULL);
 void hd_root_pose(const AnimatedObject *actor, MATRIXF *model);
+void hd_animation_begin(const AnimatedObject *owner, const SceneNode *node, bool tracks = false);
+void hd_animation_end(const AnimatedObject *owner, const SceneNode *node);
 void hd_node_pose(const SceneNode *node, const AnimatedObject *owner, const MATRIXF *parent, MATRIXF *model);
 void hd_frame_root(const AnimatedObject *actor);
 void hd_frame_root_end(void);
