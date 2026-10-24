@@ -327,7 +327,7 @@ uint32 ScenePath::ProjectOffset(sint32 frame, Vec3 &dst, uint32 dir) const
             dst.y = result;
         }
     }
-    hd_camera_project(this, sel, dir, gap, &dst);
+    hd_camera_project(this, sel, dir, &dst);
     return result;
 }
 

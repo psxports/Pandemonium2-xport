@@ -27,7 +27,7 @@ typedef void (*HdSceneRedraw)(SceneSection *scene, bool advance);
 void hd_camera_sample(const AnimationTrack *track, const MATRIX *matrix, float frame, const Vec3 *dst);
 void hd_camera_path(const ScenePath *path, float frame, uint32 dir);
 void hd_camera_aim(void);
-void hd_camera_project(const ScenePath *path, sint32 frame, uint32 dir, sint32 gap, const Vec3 *dst);
+void hd_camera_project(const ScenePath *path, sint32 frame, uint32 dir, const Vec3 *dst);
 
 struct HdCamera
 {
@@ -58,7 +58,11 @@ struct HdTexture
 {
     UV uv[4];
     uint16 page, clut;
+    uint16 left, top, width, height, flags;
 };
+
+void hd_set_filter(bool linear);
+bool hd_filter(void);
 
 enum HdTextureFlags
 {
@@ -71,7 +75,10 @@ enum HdTextureFlags
     HD_UI_RIGHT = 64,
     HD_UI_FILL = 128,
     HD_TWO_SIDED = 256,
-    HD_IMAGE_OPAQUE = 512
+    HD_IMAGE_OPAQUE = 512,
+    HD_FILTERED = 1024,
+    HD_REPEAT_U = 2048,
+    HD_REPEAT_V = 4096
 };
 
 enum HdUiAnchor

@@ -3,6 +3,7 @@
 #include "game_flow_state.h"
 #include "game.h"
 #include "hd.h"
+#include "movie.h"
 
 GameFlowState game_flow = {OriginalDefaults::GameTransitionFlags, OriginalDefaults::GameModeFlags};
 
@@ -23,7 +24,7 @@ sint32 GameFlowState::MapLevelProgression(uint32 level, uint32 mode)
 uint32 GameFlowState::PlayMovie(const char *path)
 {
     FUNCTION_MARKER(0x80064B18, "SLUS_005.78");
-    /* User-authorized bypass of the separate FMV module */
+    Movie::Play(path);
     return 0;
 }
 
