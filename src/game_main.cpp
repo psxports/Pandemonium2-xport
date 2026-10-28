@@ -37,7 +37,6 @@ void xport_main(void)
     xport_set_cleanup(hd_free);
     hd_invalidate_geometry();
     // The game paces frames with root-counter events
-    gpu_set_frame_skip(0);
     SsInit();
     memset(&psx_callback_driver, 0, sizeof(psx_callback_driver));
     SetVideoMode(OriginalDefaults::VideoMode);
